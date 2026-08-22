@@ -40,16 +40,15 @@ def cooked(fd,old,prompt):
     finally:tty.setcbreak(fd)
 
 def read_chat_line(fd,old,prompt):
-    """Small raw-mode line editor so Escape can leave chat immediately."""
-    termios.tcsetattr(fd,termios.TCSADRAIN,old); tty.setcbreak(fd); sys.stdout.write(prompt);sys.stdout.flush();chars=[]
+    termios.tcsetattr(fd,termios.TCSADRAIN,old);tty.setcbreak(fd);sys.stdout.write(prompt);sys.stdout.flush();chars=[]
     try:
         while True:
             c=byte(fd)
-            if not c: continue
+            if not c:continue
             if c=="\x1b":
                 if select.select([fd],[],[],0.04)[0] and byte(fd)=="[":
                     while select.select([fd],[],[],0.01)[0]:
-                        if byte(fd) in "~ABCDEFGH": break
+                        if byte(fd) in "~ABCDEFGH":break
                     continue
                 sys.stdout.write("\n");sys.stdout.flush();return None
             if c in "\r\n":sys.stdout.write("\n");sys.stdout.flush();return "".join(chars).strip()
@@ -193,7 +192,9 @@ def chat_loop(store,current,s):
                 print(f"{chat.ai_name}> ",end="",flush=True)
                 for piece in chat.provider.stream_reply(chat.context_messages()):print(render(piece),end="",flush=True);pieces.append(piece)
                 answer="".join(pieces).strip();print("\n")
-            else:answer=chat.provider.reply(chat.context_messages());print(f"{chat.ai_name}> {render(answer)}\n")
+            else:
+                answer=chat.provider.reply(chat.context_messages())
+                print(f"{chat.ai_name}> {render(answer)}\n")
             chat.messages.append({"role":"assistant","content":answer})
             if s.auto_memory:chat.auto_remember(text)
             if s.auto_summary:chat.maybe_summarize()
