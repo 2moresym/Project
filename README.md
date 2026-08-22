@@ -2,12 +2,25 @@
 
 A tiny, lightweight AI playground for Linux.
 
+## Features
+
+- Terminal UI with keyboard navigation and Escape-to-menu
+- Multiple persistent chats
+- Persistent memories and conversation summaries
+- Automatic memory/summarization options
+- Hugging Face and OpenAI-compatible providers
+- Model and provider switching
+- Streaming responses
+- Conversation search
+- Custom AI names and themes
+- Offline demo backend when no API token is configured
+
 ## Requirements
 
 - Python 3
 - GNU Make
 
-No Python packages are required for the current version.
+No third-party Python packages are required for the current version.
 
 ## Build / run
 
@@ -16,23 +29,60 @@ make check
 make run
 ```
 
-The program starts an interactive terminal chat. The included demo backend is
-fully offline and deterministic, so the project works immediately without an
-API key or a large local model.
+Project opens in its terminal UI. Choose **Continue current chat** to resume
+an existing conversation or **New chat** to start a separate one.
+
+## API configuration
+
+For Hugging Face:
+
+```sh
+export HF_TOKEN="your_token"
+```
+
+For an OpenAI-compatible provider:
+
+```sh
+export OPENAI_API_KEY="your_key"
+export OPENAI_BASE_URL="https://your-endpoint/v1"
+export OPENAI_MODEL="your-model"
+```
+
+The exact provider/model can also be changed from the UI.
 
 ## Commands
 
 - `/help` — show commands
-- `/history` — show the current conversation
-- `/clear` — clear the conversation
-- `/save` — save history to `data/history.json`
+- `/ui` — return to the main UI
+- `/new <name>` — create a chat
+- `/search <text>` — search conversation history
+- `/memory` — view saved memories
+- `/remember <text>` — save a memory
+- `/forget <number>` — remove a memory
+- `/clear` — clear the current conversation while keeping memories
+- `/model` — show the selected model
+- `/models` — open model selection
+- `/provider` — switch API provider
+- `/theme` — switch theme
+- `/name <name>` — rename the AI
+- `/save` — save state
 - `/quit` — save and exit
+
+Inside the UI, use **↑/↓ or W/S**, then **Enter** to select. **Escape**
+returns to the UI from chat.
+
+## Data
+
+Local conversations, memories, summaries, and settings are stored under
+`data/`. Keep API keys in environment variables rather than committing them
+to the repository.
 
 ## Architecture
 
-The terminal UI talks to a small `AIProvider` interface. The demo provider is
-intentionally replaceable; a future provider can connect to a local model,
-remote API, or another inference engine without rewriting the chat shell.
+The project is split into small modules for configuration, settings, providers,
+chat state, sessions, and the terminal controller. The provider layer is
+replaceable, allowing remote APIs or the offline demo backend to share the same
+chat interface.
 
-The project is deliberately small so it can remain usable on older Linux
-machines and grow one feature at a time.
+The project is deliberately lightweight so it remains practical on older Linux
+hardware while leaving room for additional features.
