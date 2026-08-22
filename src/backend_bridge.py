@@ -53,6 +53,8 @@ def main() -> int:
         try:
             request = json.loads(raw)
             action = request.get("action")
+            request_id = request.get("request_id")
+
             if action == "list_chats":
                 response = {
                     "action": "chat_list",
@@ -64,10 +66,16 @@ def main() -> int:
             elif action == "select_chat":
                 name = safe_name(str(request.get("name", "")))
                 if name not in store.chats:
-                    response = {"ok": False, "error": "Chat not found."}
+                    response = {"ok": False, "error": "Chat not found.", "request_id": request_id}
                 else:
                     current = name
-                    response = {"action": "history", "ok": True, "name": name, "messages": _messages(store.chats[current])}
+                    response = {
+                        "action": "history",
+                        "ok": True,
+                        "name": name,
+                        "messages": _messages(store.chats[current]),
+                        "request_id": request_id,
+                    }
             elif action == "new_chat":
                 name = safe_name(str(request.get("name", "")))
                 if name in store.chats:
@@ -78,16 +86,28 @@ def main() -> int:
                     current = name
                     response = {"action": "created", "ok": True, "name": name}
             elif action == "reply":
-                chat = store.chats[current]
+                requested_chat = safe_name(str(request.get("chat", "")))
+                chat_name = requested_chat if requested_chat in store.chats else current
+                chat = store.chats[chat_name]
                 answer = chat.send(str(request.get("text", "")))
-                store.save(current, chat)
-                response = {"ok": True, "answer": answer}
+                store.save(chat_name, chat)
+                response = {
+                    "action": "reply",
+                    "ok": True,
+                    "answer": answer,
+                    "name": chat_name,
+                    "request_id": request_id,
+                }
             elif action == "memory":
-                response = {"action": "memory", "ok": True, "memories": store.chats[current].memories}
+                response = {
+                    "action": "memory",
+                    "ok": True,
+                    "memories": store.chats[current].memories,
+                }
             else:
-                response = {"ok": False, "error": "Unknown backend action"}
+                response = {"ok": False, "error": "Unknown backend action", "request_id": request_id}
         except Exception as exc:
-            response = {"ok": False, "error": str(exc)}
+            response = {"ok": False, "error": str(exc), "request_id": request.get("request_id") if isinstance(request, dict) else None}
 
         sys.stdout.write(json.dumps(response, ensure_ascii=False) + "\n")
         sys.stdout.flush()
