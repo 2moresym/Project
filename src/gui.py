@@ -1,5 +1,6 @@
 """Lightweight desktop UI for Tiny AI Playground."""
 from __future__ import annotations
+import pathlib
 import threading
 import tkinter as tk
 from tkinter import messagebox, simpledialog, ttk
@@ -14,8 +15,16 @@ APP_CLASS = "AIChat"
 
 class VaxxApp(tk.Tk):
     def __init__(self):
-        super().__init__(); self.tk.call("wm", "class", ".", APP_CLASS); self.settings=Settings.load(); self.store=SessionStore.load(lambda _:make_provider(self.settings.model,self.settings.provider)); self.current=self.settings.current_chat if self.settings.current_chat in self.store.chats else next(iter(self.store.chats)); self._busy=False
-        self.title(f"{APP_NAME} — {self.store.chats[self.current].ai_name}"); self.geometry("1050x700"); self.minsize(760,500); self._build(); self._refresh_chats(); self._show_chat(); self.protocol("WM_DELETE_WINDOW",self._quit)
+        # Tk must receive the application class during construction. Calling
+        # `wm class` after startup is not supported by some Tk/X11 versions.
+        super().__init__(className=APP_CLASS)
+        self.settings=Settings.load(); self.store=SessionStore.load(lambda _:make_provider(self.settings.model,self.settings.provider)); self.current=self.settings.current_chat if self.settings.current_chat in self.store.chats else next(iter(self.store.chats)); self._busy=False
+        self._load_icon(); self.title(f"{APP_NAME} — {self.store.chats[self.current].ai_name}"); self.geometry("1050x700"); self.minsize(760,500); self._build(); self._refresh_chats(); self._show_chat(); self.protocol("WM_DELETE_WINDOW",self._quit)
+    def _load_icon(self):
+        icon=pathlib.Path(__file__).resolve().parent.parent/"icons"/"Temp app icon.png"
+        if icon.exists():
+            try:self._app_icon=tk.PhotoImage(file=str(icon)); self.iconphoto(True,self._app_icon)
+            except tk.TclError:pass
     def _font(self,size=11,bold=False):
         families=self.tk.call("font","families"); family="Noto Sans" if "Noto Sans" in families else "TkDefaultFont"; return (family,size,"bold") if bold else (family,size)
     def _build(self):
@@ -63,7 +72,7 @@ class VaxxApp(tk.Tk):
     def _rename_chat(self):
         name=simpledialog.askstring("Rename chat","New name:",initialvalue=self.current,parent=self); key=safe_name(name or "")
         if not key or key==self.current or key in self.store.chats:return
-        old=self.current; chat=self.store.chats[old]; self.store.rename(old,key); self.current=key; self.settings.current_chat=key; self.settings.save(); self._refresh_chats(); self._show_chat()
+        self.store.rename(self.current,key); self.current=key; self.settings.current_chat=key; self.settings.save(); self._refresh_chats(); self._show_chat()
     def _delete_chat(self):
         if len(self.store.chats)<=1:return
         if not messagebox.askyesno("Delete chat",f"Delete '{self.current}'?",parent=self):return
