@@ -2,7 +2,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
-HISTORY_FILE = DATA_DIR / "history.json"
+CHATS_DIR = DATA_DIR / "chats"
+HISTORY_FILE = DATA_DIR / "history.json"  # legacy compatibility
+SETTINGS_FILE = DATA_DIR / "settings.json"
 HF_ENDPOINT = "https://router.huggingface.co/v1/chat/completions"
 DEFAULT_MODEL = "openai/gpt-oss-120b:groq"
 DEFAULT_USER_AGENT = "Project-TinyAIPlayground/1.0 (Python urllib)"
