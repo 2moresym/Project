@@ -21,8 +21,8 @@ class DemoProvider:
         if user.lower() in {"hello", "hi", "hey"}:
             return "Hey! I'm the tiny AI playground."
         if "who are you" in user.lower():
-            return "I'm a small Python AI playground running in your terminal."
-        return f"Demo backend received: {user}\n\nSet HF_TOKEN to use a real model."
+            return "I'm a small desktop AI playground running locally."
+        return f"Demo backend received: {user}\n\nAdd a Hugging Face or OpenAI-compatible credential in Settings to use a real model."
 
     def stream_reply(self, messages):
         yield self.reply(messages)
@@ -61,8 +61,6 @@ class OpenAICompatibleProvider:
                 return urlopen(req, timeout=120)
             except HTTPError as exc:
                 detail = exc.read().decode(errors="replace")
-                # Authentication, permission, bad requests, and rate limits should
-                # be shown immediately; retrying them just wastes time/tokens.
                 if exc.code not in {408, 429} and exc.code < 500:
                     raise RuntimeError(f"API HTTP {exc.code}: {detail}") from exc
                 last_error = RuntimeError(f"API HTTP {exc.code}: {detail}")
@@ -75,7 +73,7 @@ class OpenAICompatibleProvider:
                 else:
                     message = f"Network error: {reason}"
                 last_error = RuntimeError(message)
-            except socket.timeout as exc:
+            except socket.timeout:
                 last_error = RuntimeError("The AI provider timed out while connecting.")
             except OSError as exc:
                 last_error = RuntimeError(f"Network error: {exc}")
