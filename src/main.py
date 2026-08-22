@@ -21,6 +21,7 @@ HISTORY_FILE = DATA_DIR / "history.json"
 HF_ENDPOINT = "https://router.huggingface.co/v1/chat/completions"
 DEFAULT_MODEL = "openai/gpt-oss-120b:groq"
 DEFAULT_USER_AGENT = "Project-TinyAIPlayground/1.0 (Python urllib)"
+DEFAULT_AI_NAME = "Project"
 
 
 class AIProvider(Protocol):
@@ -89,16 +90,17 @@ class Chat:
     messages: list[dict[str, str]] = field(default_factory=list)
     memories: list[str] = field(default_factory=list)
     summary: str = ""
+    ai_name: str = DEFAULT_AI_NAME
 
     def context_messages(self) -> list[dict[str, str]]:
         context: list[dict[str, str]] = []
-        if self.memories or self.summary:
-            memory_text = "Persistent memory:\n"
-            if self.memories:
-                memory_text += "\n".join(f"- {memory}" for memory in self.memories)
-            if self.summary:
-                memory_text += f"\n\nConversation summary:\n{self.summary}"
-            context.append({"role": "system", "content": memory_text})
+        system_parts = [f"Your name is {self.ai_name}. Respond naturally as this assistant."]
+        if self.memories:
+            system_parts.append("Persistent memory:\n" + "\n".join(f"- {m}" for m in self.memories))
+        if self.summary:
+            system_parts.append(f"Conversation summary:\n{self.summary}")
+        if system_parts:
+            context.append({"role": "system", "content": "\n\n".join(system_parts)})
         context.extend(self.messages)
         return context
 
@@ -125,7 +127,8 @@ class Chat:
     def save(self) -> None:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         payload = {
-            "version": 2,
+            "version": 3,
+            "ai_name": self.ai_name,
             "memories": self.memories,
             "summary": self.summary,
             "messages": self.messages,
@@ -142,23 +145,26 @@ class Chat:
             if isinstance(data, list):
                 self.messages = [
                     m for m in data
-                    if isinstance(m, dict) and m.get("role") in {"user", "assistant", "system"}
+                    if isinstance(m, dict)
+                    and m.get("role") in {"user", "assistant", "system"}
                     and isinstance(m.get("content"), str)
                 ]
                 return
-            if isinstance(data, dict):
-                messages = data.get("messages", [])
-                memories = data.get("memories", [])
-                self.messages = [
-                    m for m in messages
-                    if isinstance(m, dict) and m.get("role") in {"user", "assistant", "system"}
-                    and isinstance(m.get("content"), str)
-                ] if isinstance(messages, list) else []
-                self.memories = [
-                    str(m).strip() for m in memories
-                    if isinstance(m, str) and m.strip()
-                ] if isinstance(memories, list) else []
-                self.summary = data.get("summary", "") if isinstance(data.get("summary", ""), str) else ""
+            if not isinstance(data, dict):
+                return
+            messages = data.get("messages", [])
+            memories = data.get("memories", [])
+            self.messages = [
+                m for m in messages
+                if isinstance(m, dict)
+                and m.get("role") in {"user", "assistant", "system"}
+                and isinstance(m.get("content"), str)
+            ] if isinstance(messages, list) else []
+            self.memories = [m.strip() for m in memories if isinstance(m, str) and m.strip()] if isinstance(memories, list) else []
+            self.summary = data.get("summary", "") if isinstance(data.get("summary", ""), str) else ""
+            saved_name = data.get("ai_name", DEFAULT_AI_NAME)
+            if isinstance(saved_name, str) and saved_name.strip():
+                self.ai_name = saved_name.strip()[:40]
         except (OSError, json.JSONDecodeError) as exc:
             print(f"Warning: couldn't load saved history: {exc}", file=sys.stderr)
 
@@ -168,7 +174,7 @@ def print_history(chat: Chat) -> None:
         print("No messages yet.")
         return
     for message in chat.messages:
-        role = "You" if message["role"] == "user" else "AI" if message["role"] == "assistant" else "System"
+        role = "You" if message["role"] == "user" else chat.ai_name if message["role"] == "assistant" else "System"
         print(f"{role}: {message['content']}")
 
 
@@ -204,47 +210,37 @@ HELP = """Commands:
   /history           Show conversation
   /memory            Show persistent memories
   /remember <text>   Save a persistent memory
-  /forget <number>  Remove a memory
+  /forget <number>   Remove a memory
   /clear             Clear conversation (keeps memories)
   /save              Save now
   /model             Show current model
   /models            Choose another Hugging Face model/provider
-  /ui                Open the keyboard/mouse menu
+  /name <name>       Rename the AI
+  /ui                Open the main menu
   /quit              Save and exit
 
-In the menu: Arrow keys, W/S, Enter, Esc, and mouse clicks are supported.
+In menus: Arrow keys, W/S, Enter, Esc, and mouse clicks are supported.
 """
 
 
-def choose_model(current: str) -> str:
-    models = available_models()
-    print("\nSelect a Hugging Face provider/model:")
-    for index, model in enumerate(models, 1):
-        marker = "*" if model == current else " "
-        print(f"  {index}. [{marker}] {model}")
-    print("  0. Cancel")
-    try:
-        choice = input("Select> ").strip()
-    except (EOFError, KeyboardInterrupt):
-        return current
-    return models[int(choice) - 1] if choice.isdigit() and 1 <= int(choice) <= len(models) else current
-
-
-def _render_menu(options: list[str], index: int) -> None:
+def _render_menu(title: str, options: list[str], index: int, footer: str = "↑/↓ or W/S: move   Enter/click: select   Esc: back") -> None:
     sys.stdout.write("\x1b[2J\x1b[H")
-    print("=" * 48)
-    print(" PROJECT — Tiny AI Playground")
-    print("=" * 48)
+    print("=" * 56)
+    print(f" {title}")
+    print("=" * 56)
     for i, option in enumerate(options):
         print(f" {'▶' if i == index else ' '} {option}")
-    print("\n↑/↓ or W/S: move   Enter/click: select   Esc: back")
+    print(f"\n{footer}")
     sys.stdout.flush()
 
 
 def _read_byte(fd: int, timeout: float = 0.0) -> str:
     if timeout and not select.select([fd], [], [], timeout)[0]:
         return ""
-    return os.read(fd, 1).decode("utf-8", errors="ignore")
+    try:
+        return os.read(fd, 1).decode("utf-8", errors="ignore")
+    except OSError:
+        return ""
 
 
 def _read_menu_action(fd: int) -> tuple[str, int | None]:
@@ -260,18 +256,18 @@ def _read_menu_action(fd: int) -> tuple[str, int | None]:
     if first != "\x1b":
         return "other", None
 
-    second = _read_byte(fd, 0.05)
+    second = _read_byte(fd, 0.08)
     if second != "[":
         return "escape", None
     sequence = ""
-    while len(sequence) < 32:
-        char = _read_byte(fd, 0.05)
+    while len(sequence) < 64:
+        char = _read_byte(fd, 0.08)
         if not char:
             break
         sequence += char
         if char in "ABCD":
             return {"A": "up", "B": "down", "C": "right", "D": "left"}[char], None
-        if char == "M" and sequence.startswith("<"):
+        if char == "M":
             break
     if sequence.startswith("<") and sequence.endswith("M"):
         try:
@@ -282,101 +278,139 @@ def _read_menu_action(fd: int) -> tuple[str, int | None]:
     return "escape", None
 
 
-def _pause_menu(fd: int, old_settings: list) -> None:
+def _run_cooked_input(fd: int, old_settings: list, prompt: str) -> str:
+    """Temporarily leave raw/cbreak mode so normal line input works."""
     termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
     try:
-        input("Press Enter to continue...")
+        return input(prompt).strip()
     except (EOFError, KeyboardInterrupt):
-        pass
-    tty.setcbreak(fd)
+        return ""
+    finally:
+        tty.setcbreak(fd)
 
 
-def _activate_menu_selection(chat: Chat, model: str, selected: str, fd: int, old_settings: list) -> tuple[str, str | None, bool]:
-    """Return (action, new_model, should_quit)."""
-    if selected == "New message":
-        return "back", None, False
+def _pause_menu(fd: int, old_settings: list, message: str = "Press Enter to continue...") -> None:
+    _run_cooked_input(fd, old_settings, message)
+
+
+def _model_menu(chat: Chat, current: str, fd: int, old_settings: list) -> str:
+    models = available_models()
+    index = models.index(current) if current in models else 0
+    while True:
+        _render_menu(" SELECT MODEL", models + ["Cancel"], index, "↑/↓ or W/S: move   Enter/click: select   Esc: cancel")
+        action, y = _read_menu_action(fd)
+        if action == "up":
+            index = (index - 1) % len(models)
+        elif action == "down":
+            index = (index + 1) % len(models)
+        elif action in {"escape", "quit"}:
+            return current
+        elif action == "click" and y is not None:
+            clicked = y - 4
+            if 0 <= clicked < len(models) + 1:
+                index = clicked
+                if index == len(models):
+                    return current
+                chat.provider = make_provider(models[index])
+                return models[index]
+        elif action == "enter":
+            if index >= len(models):
+                return current
+            chat.provider = make_provider(models[index])
+            return models[index]
+
+
+def _rename_ai(chat: Chat, fd: int, old_settings: list) -> None:
+    name = _run_cooked_input(fd, old_settings, f"AI name [{chat.ai_name}]> ")
+    if not name:
+        return
+    chat.ai_name = name[:40]
+    chat.save()
+
+
+def _activate_menu_selection(chat: Chat, model: str, selected: str, fd: int, old_settings: list) -> tuple[str, str, bool]:
+    if selected == "Continue current chat":
+        return "chat", model, False
+    if selected == "New chat":
+        chat.messages.clear()
+        chat.summary = ""
+        chat.save()
+        return "chat", model, False
     if selected == "History":
-        _pause_menu(fd, old_settings)
+        _run_cooked_input(fd, old_settings, "")
         print_history(chat)
         _pause_menu(fd, old_settings)
-        return "stay", None, False
+        return "stay", model, False
     if selected == "Memory":
-        _pause_menu(fd, old_settings)
+        _run_cooked_input(fd, old_settings, "")
         print_memory(chat)
         _pause_menu(fd, old_settings)
-        return "stay", None, False
+        return "stay", model, False
     if selected == "Switch model":
-        _pause_menu(fd, old_settings)
-        new_model = choose_model(model)
-        return "model", new_model, False
+        return "model", _model_menu(chat, model, fd, old_settings), False
+    if selected == "Rename AI":
+        _rename_ai(chat, fd, old_settings)
+        return "stay", model, False
     if selected == "Clear conversation":
         chat.messages.clear()
+        chat.summary = ""
         chat.save()
-        _pause_menu(fd, old_settings)
-        print("Conversation cleared; memories kept.")
-        _pause_menu(fd, old_settings)
-        return "stay", None, False
+        return "stay", model, False
     if selected == "Save":
         chat.save()
-        _pause_menu(fd, old_settings)
-        print("Saved.")
-        _pause_menu(fd, old_settings)
-        return "stay", None, False
+        return "stay", model, False
     if selected == "Help":
-        _pause_menu(fd, old_settings)
+        _run_cooked_input(fd, old_settings, "")
         print(HELP)
         _pause_menu(fd, old_settings)
-        return "stay", None, False
+        return "stay", model, False
     if selected == "Quit":
         chat.save()
-        return "quit", None, True
-    return "stay", None, False
+        return "quit", model, True
+    return "stay", model, False
 
 
-def run_menu(chat: Chat, model: str) -> tuple[bool, str]:
-    """Run the TUI and always return a valid (quit, model) tuple."""
-    options = ["New message", "History", "Memory", "Switch model", "Clear conversation", "Save", "Help", "Quit"]
+def run_menu(chat: Chat, model: str, boot: bool = False) -> tuple[bool, str]:
+    options = (
+        ["Continue current chat", "New chat", "Rename AI", "Switch model", "History", "Memory", "Clear conversation", "Save", "Help", "Quit"]
+        if boot else
+        ["Continue current chat", "New chat", "Rename AI", "Switch model", "History", "Memory", "Clear conversation", "Save", "Help", "Quit"]
+    )
     index = 0
     fd = sys.stdin.fileno()
     old_settings = termios.tcgetattr(fd)
     mouse_enabled = False
     try:
         tty.setcbreak(fd)
-        # Button events are enabled with SGR coordinates (1006) and basic clicks (1000).
         sys.stdout.write("\x1b[?1000h\x1b[?1006h\x1b[?25l")
         sys.stdout.flush()
         mouse_enabled = True
         while True:
-            _render_menu(options, index)
+            title = f" {chat.ai_name} — Tiny AI Playground"
+            _render_menu(title, options, index)
             action, y = _read_menu_action(fd)
             if action == "up":
                 index = (index - 1) % len(options)
-                continue
-            if action == "down":
+            elif action == "down":
                 index = (index + 1) % len(options)
-                continue
-            if action == "quit":
+            elif action == "quit":
                 chat.save()
                 return True, model
-            if action == "escape":
+            elif action == "escape":
                 return False, model
-            if action == "click" and y is not None:
-                # Header is four terminal rows; options occupy rows 5..12.
-                clicked = y - 5
+            elif action == "click" and y is not None:
+                clicked = y - 4
                 if 0 <= clicked < len(options):
                     index = clicked
                     action = "enter"
-                else:
-                    continue
             if action == "enter":
-                result, new_model, should_quit = _activate_menu_selection(chat, model, options[index], fd, old_settings)
-                if new_model is not None:
-                    model = new_model
-                    chat.provider = make_provider(model)
-                if should_quit or result == "quit":
+                result, model, should_quit = _activate_menu_selection(chat, model, options[index], fd, old_settings)
+                if should_quit:
                     return True, model
-                if result == "back":
+                if result == "chat":
                     return False, model
+                if result == "quit":
+                    return True, model
     finally:
         if mouse_enabled:
             sys.stdout.write("\x1b[?1006l\x1b[?1000l\x1b[?25h")
@@ -389,11 +423,20 @@ def main() -> int:
     chat = Chat(make_provider(configured_model))
     chat.load()
     model = configured_model
+
+    try:
+        should_quit, model = run_menu(chat, model, boot=True)
+    except (OSError, termios.error) as exc:
+        print(f"TUI unavailable: {exc}")
+        should_quit = False
+    if should_quit:
+        return 0
+
     if isinstance(chat.provider, HuggingFaceProvider):
         print(f"Backend: Hugging Face ({model})")
     else:
         print("Backend: offline demo (HF_TOKEN is not set)")
-    print("Project — Tiny AI Playground")
+    print(f"{chat.ai_name} — Tiny AI Playground")
     print("Type /help for commands, /ui for the menu, /quit to exit.\n")
 
     while True:
@@ -448,6 +491,7 @@ def main() -> int:
             continue
         if text == "/clear":
             chat.messages.clear()
+            chat.summary = ""
             chat.save()
             print("Conversation cleared; memories kept.")
             continue
@@ -459,16 +503,34 @@ def main() -> int:
             print(model)
             continue
         if text == "/models":
-            model = choose_model(model)
-            chat.provider = make_provider(model)
+            fd = sys.stdin.fileno()
+            old_settings = termios.tcgetattr(fd)
+            try:
+                tty.setcbreak(fd)
+                model = _model_menu(chat, model, fd, old_settings)
+            finally:
+                termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
             print(f"Model set to: {model}")
             continue
+        if text.startswith("/name"):
+            fd = sys.stdin.fileno()
+            old_settings = termios.tcgetattr(fd)
+            try:
+                chat.ai_name = chat.ai_name
+                name = _run_cooked_input(fd, old_settings, f"AI name [{chat.ai_name}]> ")
+                if name:
+                    chat.ai_name = name[:40]
+                    chat.save()
+            finally:
+                termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+            continue
         try:
-            print(f"ai> {chat.send(text)}\n")
+            answer = chat.send(text)
+            print(f"{chat.ai_name}> {answer}\n")
         except RuntimeError as exc:
-            print(f"ai> Error: {exc}\n", file=sys.stderr)
+            print(f"{chat.ai_name}> Error: {exc}\n", file=sys.stderr)
         except Exception as exc:
-            print(f"ai> Unexpected error: {type(exc).__name__}: {exc}\n", file=sys.stderr)
+            print(f"{chat.ai_name}> Unexpected error: {type(exc).__name__}: {exc}\n", file=sys.stderr)
 
 
 if __name__ == "__main__":
