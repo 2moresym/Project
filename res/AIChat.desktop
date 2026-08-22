@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=AI Chat
+Comment=Lightweight local AI playground
+Exec=python3 -m src.gui
+Path=%k
+Icon=icons/Temp app icon.png
+Terminal=false
+Categories=Utility;Chat;
+StartupNotify=true
+StartupWMClass=AIChat
