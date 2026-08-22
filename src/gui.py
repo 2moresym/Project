@@ -5,9 +5,10 @@ import threading
 import tkinter as tk
 from tkinter import messagebox, simpledialog, ttk
 from .chat import Chat
+from .config import MODELS
 from .providers import make_provider
 from .sessions import SessionStore, safe_name
-from .settings import Settings
+from .settings import Settings, THEMES
 from .terminal_render import render
 
 APP_NAME = "AI Chat"
@@ -15,8 +16,6 @@ APP_CLASS = "AIChat"
 
 class VaxxApp(tk.Tk):
     def __init__(self):
-        # Tk must receive the application class during construction. Calling
-        # `wm class` after startup is not supported by some Tk/X11 versions.
         super().__init__(className=APP_CLASS)
         self.settings=Settings.load(); self.store=SessionStore.load(lambda _:make_provider(self.settings.model,self.settings.provider)); self.current=self.settings.current_chat if self.settings.current_chat in self.store.chats else next(iter(self.store.chats)); self._busy=False
         self._load_icon(); self.title(f"{APP_NAME} — {self.store.chats[self.current].ai_name}"); self.geometry("1050x700"); self.minsize(760,500); self._build(); self._refresh_chats(); self._show_chat(); self.protocol("WM_DELETE_WINDOW",self._quit)
@@ -80,7 +79,36 @@ class VaxxApp(tk.Tk):
     def _show_memory(self):
         memories=self._chat().memories; message="No saved memories." if not memories else "\n".join(f"{i}. {m}" for i,m in enumerate(memories,1)); messagebox.showinfo("Memory",message,parent=self)
     def _settings(self):
-        model=simpledialog.askstring("Model","Model:",initialvalue=self.settings.model,parent=self); self.settings.model=model.strip() if model else self.settings.model; provider=simpledialog.askstring("Provider","Provider (huggingface/openai):",initialvalue=self.settings.provider,parent=self); self.settings.provider=provider if provider in {"huggingface","openai"} else self.settings.provider; name=simpledialog.askstring("AI name","AI name:",initialvalue=self._chat().ai_name,parent=self); self._chat().ai_name=name.strip()[:40] if name else self._chat().ai_name; self.settings.save(); self.store.save(self.current,self._chat()); self._show_chat()
+        win=tk.Toplevel(self); win.title("Settings"); win.transient(self); win.grab_set(); win.resizable(False,False)
+        frame=ttk.Frame(win,padding=18); frame.grid(row=0,column=0,sticky="nsew")
+        ttk.Label(frame,text="AI Chat Settings",font=self._font(16,True)).grid(row=0,column=0,columnspan=2,sticky="w",pady=(0,16))
+        entries={}
+        def combo(row,label,var,values):
+            ttk.Label(frame,text=label).grid(row=row,column=0,sticky="w",padx=(0,18),pady=7)
+            box=ttk.Combobox(frame,textvariable=var,state="readonly",values=values,width=46); box.grid(row=row,column=1,sticky="ew",pady=7); return box
+        name_var=tk.StringVar(value=self._chat().ai_name)
+        ttk.Label(frame,text="AI name").grid(row=1,column=0,sticky="w",padx=(0,18),pady=7)
+        ttk.Entry(frame,textvariable=name_var,width=49).grid(row=1,column=1,sticky="ew",pady=7)
+        provider_var=tk.StringVar(value=self.settings.provider)
+        combo(2,"API provider",provider_var,["huggingface","openai"])
+        model_values=list(MODELS)
+        if self.settings.model not in model_values:model_values.append(self.settings.model)
+        model_var=tk.StringVar(value=self.settings.model); combo(3,"Model",model_var,model_values)
+        theme_var=tk.StringVar(value=self.settings.theme); combo(4,"Theme",theme_var,list(THEMES))
+        stream_var=tk.BooleanVar(value=self.settings.stream); memory_var=tk.BooleanVar(value=self.settings.auto_memory); summary_var=tk.BooleanVar(value=self.settings.auto_summary)
+        ttk.Checkbutton(frame,text="Enable streaming responses",variable=stream_var).grid(row=5,column=1,sticky="w",pady=5)
+        ttk.Checkbutton(frame,text="Automatically remember simple personal facts",variable=memory_var).grid(row=6,column=1,sticky="w",pady=5)
+        ttk.Checkbutton(frame,text="Automatically summarize long conversations",variable=summary_var).grid(row=7,column=1,sticky="w",pady=5)
+        ttk.Separator(frame).grid(row=8,column=0,columnspan=2,sticky="ew",pady=(10,12))
+        buttons=ttk.Frame(frame); buttons.grid(row=9,column=0,columnspan=2,sticky="e")
+        def save_settings():
+            name=name_var.get().strip()
+            if name:self._chat().ai_name=name[:40]
+            self.settings.provider=provider_var.get(); self.settings.model=model_var.get(); self.settings.theme=theme_var.get(); self.settings.stream=stream_var.get(); self.settings.auto_memory=memory_var.get(); self.settings.auto_summary=summary_var.get(); self.settings.save(); self._chat().provider=self._provider(); self.store.save(self.current,self._chat()); self._show_chat(); win.destroy()
+        ttk.Button(buttons,text="Cancel",command=win.destroy).grid(row=0,column=0,padx=(0,8)); ttk.Button(buttons,text="Save",command=save_settings).grid(row=0,column=1)
+        win.bind("<Escape>",lambda _:win.destroy()); win.bind("<Return>",lambda _:save_settings())
+        win.update_idletasks(); win.geometry(f"{max(win.winfo_reqwidth(),560)}x{win.winfo_reqheight()}")
+        x=self.winfo_rootx()+(self.winfo_width()-win.winfo_width())//2; y=self.winfo_rooty()+(self.winfo_height()-win.winfo_height())//2; win.geometry(f"+{x}+{y}"); win.focus_force()
     def _quit(self):
         try:self.store.save(self.current,self._chat()); self.settings.current_chat=self.current; self.settings.save()
         finally:self.destroy()
