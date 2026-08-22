@@ -5,10 +5,9 @@ A tiny, lightweight AI playground for Linux.
 ## Features
 
 - Lightweight Python desktop UI (**AI Chat**) with mouse/keyboard support
-- PySide6/Qt desktop interface with smooth sidebar animation and subtle shadowing
+- PySide6 desktop UI with rounded surfaces, subtle animation, and responsive layout
 - Collapsible chat sidebar for more conversation space
 - Persistent chat list with new, rename, switch, and delete actions
-- Selectable rich AI output with Unicode math and Markdown formatting
 - Copy/select-all support for AI and user messages
 - Persistent memories and conversation summaries
 - Automatic memory/summarization options
@@ -20,7 +19,8 @@ A tiny, lightweight AI playground for Linux.
 - Background AI requests so the UI stays responsive
 - Conversation search
 - Custom AI names
-- Smart Unicode rendering for common math/LaTeX
+- Smart Unicode rendering for Markdown and common math/LaTeX
+- Native rich-text rendering for headings, bold, italic, inline code, and fenced code blocks
 - Lightweight terminal UI remains available as a fallback
 - Offline demo backend when no API token is configured
 
@@ -28,25 +28,36 @@ A tiny, lightweight AI playground for Linux.
 
 - Python 3
 - GNU Make
-- PySide6 for the desktop app
+- A Python virtual-environment module (`python3-venv` on Debian/Ubuntu)
 
-Install the desktop dependency with:
+The desktop UI uses PySide6. The project installs it into a local `.venv` so it
+does not modify Debian/Ubuntu's system-managed Python environment (PEP 668).
+
+On Debian/Ubuntu-based systems, install the venv support once if needed:
 
 ```sh
-python3 -m pip install -r requirements.txt
+sudo apt install python3-venv
 ```
 
-The project also keeps its terminal fallback dependency-light.
+No global `pip install` is required.
 
 ## Build / run
 
 ```sh
+git pull
 make check
 make run
 ```
 
-`make run` opens the PySide6 desktop application as **AI Chat**. The terminal
-version remains available as a lightweight fallback:
+`make run` automatically creates `.venv` and installs the dependencies from
+`requirements.txt` before launching **AI Chat**. You can also prepare the
+environment without launching the app:
+
+```sh
+make setup
+```
+
+The terminal version remains available as a lightweight fallback:
 
 ```sh
 make terminal
@@ -72,13 +83,13 @@ The provider and model can also be changed from the desktop Settings panel.
 
 ## Desktop UI
 
-The desktop app keeps the project lightweight while providing a more polished
-Qt surface for rich AI output. It provides:
+The desktop app keeps the backend lightweight while using Qt for a smoother
+presentation layer. It provides:
 
-- Collapsible/expandable animated sidebar
-- Rounded cards, native Qt controls, and subtle drop shadows
+- Collapsible/expandable sidebar with a short smooth animation
+- Rounded cards, controls, and input surfaces
 - Scrollable selectable conversation view
-- Unicode math and basic Markdown rendering
+- Copy/select-all support
 - Multiline message input
 - Background requests so the window does not freeze during API calls
 - Memory viewer
@@ -87,11 +98,8 @@ Qt surface for rich AI output. It provides:
 - Dropdowns for provider, model, appearance, and accent theme instead of
   sequential prompts
 - Light/dark/system appearance support
+- Unicode and rich Markdown/math rendering
 - Persistent local chat/session state
-- Application icon loaded from `icons/`
-
-The UI deliberately avoids Qt WebEngine and other heavyweight components so the
-visual layer stays practical on older integrated graphics.
 
 ## Icons
 
@@ -129,14 +137,14 @@ The project keeps the AI backend separate from its presentation layers:
 
 ```text
 src/
-├── gui.py              # desktop entry point
-├── qt_gui.py           # PySide6 desktop UI
-├── main.py             # terminal UI
-├── chat.py             # conversation and memory state
-├── providers.py        # API providers
-├── sessions.py         # persistent chats
-├── settings.py         # persistent settings
-└── terminal_render.py  # terminal Markdown/math rendering
+├── qt_gui.py            # PySide6 desktop UI
+├── gui.py               # compatibility desktop entry point
+├── main.py              # terminal UI
+├── chat.py              # conversation and memory state
+├── providers.py         # API providers
+├── sessions.py          # persistent chats
+├── settings.py          # persistent settings
+└── terminal_render.py   # terminal Markdown/math rendering
 ```
 
 The project is deliberately lightweight so it remains practical on older Linux
