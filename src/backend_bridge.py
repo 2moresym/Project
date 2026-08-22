@@ -1,4 +1,4 @@
-"""Line-oriented backend bridge used by the native C++ desktop UI."""
+"""Line-oriented Python AI backend used by the native C++ UI."""
 from __future__ import annotations
 
 import json
@@ -11,8 +11,10 @@ from .providers import make_provider
 
 
 def main() -> int:
-    provider_name = "openai" if os.environ.get("OPENAI_API_KEY", "").strip() else "huggingface"
-    model = os.environ.get("OPENAI_MODEL", DEFAULT_MODEL).strip() or DEFAULT_MODEL
+    provider_name = os.environ.get("PROJECT_PROVIDER", "huggingface").strip().lower() or "huggingface"
+    if provider_name not in {"huggingface", "openai"}:
+        provider_name = "huggingface"
+    model = os.environ.get("OPENAI_MODEL", "").strip() or DEFAULT_MODEL
     chat = Chat(make_provider(model, provider_name))
     chat.load()
 
