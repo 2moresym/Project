@@ -5,7 +5,10 @@ from __future__ import annotations
 
 import json
 import os
+import select
 import sys
+import termios
+import tty
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
@@ -180,15 +183,15 @@ HELP = """Commands:
   /history           Show conversation
   /memory            Show persistent memories
   /remember <text>   Save a persistent memory
-  /forget <number>  Remove a memory
+  /forget <number>   Remove a memory
   /clear             Clear conversation (keeps memories)
   /save              Save now
   /model             Show current model
   /models            Choose another Hugging Face model/provider
-  /ui                Toggle the keyboard-friendly menu
+  /ui                Open the keyboard/mouse menu
   /quit              Save and exit
 
-In the menu: Arrow keys navigate, Enter selects, Esc closes.
+In the menu: Arrow keys, W/S, Enter, Esc, and mouse clicks are supported.
 """
 
 
@@ -208,53 +211,149 @@ def choose_model(current: str) -> str:
     return current
 
 
+def read_menu_key() -> str:
+    """Read one menu action without waiting for Enter.
+
+    Arrow keys are decoded from ANSI escape sequences. SGR mouse reporting is
+    enabled by run_menu, so a left click on an option is returned as ``mouse:N``.
+    """
+    fd = sys.stdin.fileno()
+    first = os.read(fd, 1).decode("utf-8", errors="ignore")
+    if first in {"w", "W"}:
+        return "up"
+    if first in {"s", "S"}:
+        return "down"
+    if first in {"\r", "\n"}:
+        return "enter"
+    if first == "\x03":
+        return "quit"
+    if first == "\x1b":
+        if select.select([sys.stdin], [], [], 0.05)[0]:
+            second = os.read(fd, 1).decode("utf-8", errors="ignore")
+            if second == "[":
+                sequence = ""
+                while len(sequence) < 8:
+                    if not select.select([sys.stdin], [], [], 0.1)[0]:
+                        break
+                    char = os.read(fd, 1).decode("utf-8", errors="ignore")
+                    sequence += char
+                    if char in "ABCD":
+                        return {"A": "up", "B": "down", "C": "right", "D": "left"}[char]
+                    if char in "~M":
+                        break
+            elif second == "]":
+                # Not a mouse event; consume a short OSC sequence safely.
+                return "escape"
+        return "escape"
+    return "other"
+
+
 def run_menu(chat: Chat, model: str) -> tuple[bool, str]:
     options = ["New message", "History", "Memory", "Switch model", "Clear conversation", "Save", "Help", "Quit"]
     index = 0
-    while True:
-        print("\n" + "=" * 48)
-        print(" PROJECT — Tiny AI Playground")
-        print("=" * 48)
-        for i, option in enumerate(options):
-            cursor = ">" if i == index else " "
-            print(f" {cursor} {option}")
-        print("\nUse ↑/↓ and Enter, or press Esc to return to chat.")
-        try:
-            key = input("Menu> ")
-        except (EOFError, KeyboardInterrupt):
-            return True, model
-        if key.lower() in {"q", "quit"}:
-            chat.save()
-            return True, model
-        if key.lower() == "w" or key == "\x1b[A":
-            index = (index - 1) % len(options)
-        elif key.lower() == "s" or key == "\x1b[B":
-            index = (index + 1) % len(options)
-        elif key in {"", "\r", "\n"}:
-            selected = options[index]
-            if selected == "New message":
-                return False, model
-            if selected == "History":
-                print_history(chat)
-            elif selected == "Memory":
-                print_memory(chat)
-            elif selected == "Switch model":
-                model = choose_model(model)
-                chat.provider = make_provider(model)
-                print(f"Model set to: {model}")
-            elif selected == "Clear conversation":
-                chat.messages.clear()
-                print("Conversation cleared; memories kept.")
-            elif selected == "Save":
-                chat.save()
-                print("Saved.")
-            elif selected == "Help":
-                print(HELP)
-            elif selected == "Quit":
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    mouse_enabled = False
+    try:
+        tty.setcbreak(fd)
+        # Enable SGR mouse tracking and hide the cursor while the menu is active.
+        sys.stdout.write("\x1b[?1000h\x1b[?1006h\x1b[?25l")
+        sys.stdout.flush()
+        mouse_enabled = True
+        while True:
+            sys.stdout.write("\x1b[2J\x1b[H")
+            print("=" * 48)
+            print(" PROJECT — Tiny AI Playground")
+            print("=" * 48)
+            for i, option in enumerate(options):
+                cursor = "▶" if i == index else " "
+                print(f" {cursor} {option}")
+            print("\n↑/↓ or W/S: move   Enter/click: select   Esc: back")
+            sys.stdout.flush()
+
+            action = read_menu_key()
+            if action == "up":
+                index = (index - 1) % len(options)
+            elif action == "down":
+                index = (index + 1) % len(options)
+            elif action == "quit":
                 chat.save()
                 return True, model
-        elif key == "\x1b":
-            return False, model
+            elif action == "escape":
+                return False, model
+            elif action == "enter":
+                selected = options[index]
+                if selected == "New message":
+                    return False, model
+                if selected == "History":
+                    break
+                if selected == "Memory":
+                    break
+                if selected == "Switch model":
+                    break
+                if selected == "Clear conversation":
+                    chat.messages.clear()
+                    chat.save()
+                    print("Conversation cleared; memories kept.")
+                    input("Press Enter to continue...")
+                elif selected == "Save":
+                    chat.save()
+                    print("Saved.")
+                    input("Press Enter to continue...")
+                elif selected == "Help":
+                    print(HELP)
+                    input("Press Enter to continue...")
+                elif selected == "Quit":
+                    chat.save()
+                    return True, model
+            elif action == "other":
+                continue
+            # Mouse input is handled through the same raw stream below. A click
+            # sequence is intentionally parsed here rather than echoing it.
+            if select.select([sys.stdin], [], [], 0)[0]:
+                pending = os.read(fd, 1).decode("utf-8", errors="ignore")
+                if pending == "\x1b" and select.select([sys.stdin], [], [], 0.02)[0]:
+                    seq = os.read(fd, 1).decode("utf-8", errors="ignore")
+                    if seq == "[" and select.select([sys.stdin], [], [], 0.02)[0]:
+                        rest = ""
+                        while len(rest) < 32 and select.select([sys.stdin], [], [], 0.02)[0]:
+                            char = os.read(fd, 1).decode("utf-8", errors="ignore")
+                            rest += char
+                            if char == "M" and rest.startswith("<"):
+                                parts = rest[:-1].split(";")
+                                if len(parts) == 3:
+                                    try:
+                                        button, _x, y = map(int, parts)
+                                        if button == 0:
+                                            clicked = y - 4
+                                            if 0 <= clicked < len(options):
+                                                index = clicked
+                                                # Selecting on click makes the menu feel like a real TUI.
+                                                selected = options[index]
+                                                if selected == "New message":
+                                                    return False, model
+                                                if selected == "History":
+                                                    print_history(chat); input("Press Enter to continue...")
+                                                elif selected == "Memory":
+                                                    print_memory(chat); input("Press Enter to continue...")
+                                                elif selected == "Switch model":
+                                                    model = choose_model(model); chat.provider = make_provider(model)
+                                                elif selected == "Clear conversation":
+                                                    chat.messages.clear(); chat.save(); print("Conversation cleared; memories kept."); input("Press Enter to continue...")
+                                                elif selected == "Save":
+                                                    chat.save(); print("Saved."); input("Press Enter to continue...")
+                                                elif selected == "Help":
+                                                    print(HELP); input("Press Enter to continue...")
+                                                elif selected == "Quit":
+                                                    chat.save(); return True, model
+                                    except ValueError:
+                                        pass
+                                break
+    finally:
+        if mouse_enabled:
+            sys.stdout.write("\x1b[?1006l\x1b[?1000l\x1b[?25h")
+            sys.stdout.flush()
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
 
 def main() -> int:
