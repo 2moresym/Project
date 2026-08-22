@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
-"""Tiny, dependency-free terminal AI playground.
+"""Tiny terminal AI playground with a Hugging Face backend.
 
-The first version is intentionally small: it provides a local chat shell and a
-provider interface. The built-in provider is a deterministic demo backend so
-the project runs with only Python 3. A real model can be added later without
-changing the terminal UI.
+The app stays dependency-free by using Python's standard-library HTTP client.
+Set HF_TOKEN to enable a real model; without it, the offline demo still works.
 """
 
 from __future__ import annotations
@@ -15,11 +13,15 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
 HISTORY_FILE = DATA_DIR / "history.json"
+HF_ENDPOINT = "https://router.huggingface.co/v1/chat/completions"
+DEFAULT_MODEL = "openai/gpt-oss-120b:fastest"
 
 
 class AIProvider(Protocol):
@@ -28,19 +30,63 @@ class AIProvider(Protocol):
 
 @dataclass
 class DemoProvider:
-    """A tiny offline provider used until a real model backend is configured."""
+    """Small offline fallback used when no HF token is configured."""
 
     def reply(self, messages: list[dict[str, str]]) -> str:
         user = messages[-1]["content"].strip()
         lowered = user.lower()
-
         if lowered in {"hello", "hi", "hey"}:
             return "Hey! I'm the tiny AI playground."
         if "who are you" in lowered:
             return "I'm Project, a small Python AI playground running in your terminal."
         if "help" in lowered:
-            return "Try chatting with me, /history, /clear, /save, /help, or /quit."
-        return f"Demo backend received: {user}\n\nA real model provider can be plugged in here later."
+            return "Try chatting with me, /history, /clear, /save, /model, /help, or /quit."
+        return f"Demo backend received: {user}\n\nSet HF_TOKEN to use a real model."
+
+
+@dataclass
+class HuggingFaceProvider:
+    """OpenAI-compatible Hugging Face Inference Providers client using stdlib HTTP."""
+
+    token: str
+    model: str = DEFAULT_MODEL
+
+    def reply(self, messages: list[dict[str, str]]) -> str:
+        payload = json.dumps({
+            "model": self.model,
+            "messages": messages,
+            "temperature": 0.7,
+            "max_tokens": 512,
+            "stream": False,
+        }).encode("utf-8")
+
+        request = Request(
+            HF_ENDPOINT,
+            data=payload,
+            headers={
+                "Authorization": f"Bearer {self.token}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+            method="POST",
+        )
+
+        try:
+            with urlopen(request, timeout=120) as response:
+                data = json.loads(response.read().decode("utf-8"))
+        except HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"Hugging Face HTTP {exc.code}: {detail}") from exc
+        except URLError as exc:
+            raise RuntimeError(f"Network error: {exc.reason}") from exc
+        except TimeoutError as exc:
+            raise RuntimeError("Hugging Face request timed out.") from exc
+
+        try:
+            content = data["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError) as exc:
+            raise RuntimeError(f"Unexpected Hugging Face response: {data}") from exc
+        return str(content).strip()
 
 
 @dataclass
@@ -50,7 +96,12 @@ class Chat:
 
     def send(self, text: str) -> str:
         self.messages.append({"role": "user", "content": text})
-        answer = self.provider.reply(self.messages)
+        try:
+            answer = self.provider.reply(self.messages)
+        except RuntimeError:
+            # Remove the unsent user message so a failed request does not poison history.
+            self.messages.pop()
+            raise
         self.messages.append({"role": "assistant", "content": answer})
         return answer
 
@@ -78,8 +129,18 @@ def print_history(chat: Chat) -> None:
         print(f"{role}: {message['content']}")
 
 
+def make_provider() -> AIProvider:
+    token = os.environ.get("HF_TOKEN", "").strip()
+    model = os.environ.get("HF_MODEL", DEFAULT_MODEL).strip() or DEFAULT_MODEL
+    if token:
+        print(f"Backend: Hugging Face ({model})")
+        return HuggingFaceProvider(token=token, model=model)
+    print("Backend: offline demo (HF_TOKEN is not set)")
+    return DemoProvider()
+
+
 def main() -> int:
-    chat = Chat(DemoProvider())
+    chat = Chat(make_provider())
     chat.load()
 
     print("Project — Tiny AI Playground")
@@ -95,12 +156,12 @@ def main() -> int:
 
         if not text:
             continue
-        if text == "/quit" or text == "/exit":
+        if text in {"/quit", "/exit"}:
             chat.save()
             print("History saved. Bye!")
             return 0
         if text == "/help":
-            print("/history  show conversation\n/clear    clear conversation\n/save     save conversation\n/quit     exit")
+            print("/history  show conversation\n/clear    clear conversation\n/save     save conversation\n/model    show selected model\n/quit     save and exit")
             continue
         if text == "/history":
             print_history(chat)
@@ -113,8 +174,14 @@ def main() -> int:
             chat.save()
             print(f"Saved to {HISTORY_FILE.relative_to(ROOT)}")
             continue
+        if text == "/model":
+            print(os.environ.get("HF_MODEL", DEFAULT_MODEL))
+            continue
 
-        print(f"ai> {chat.send(text)}\n")
+        try:
+            print(f"ai> {chat.send(text)}\n")
+        except RuntimeError as exc:
+            print(f"ai> Error: {exc}\n", file=sys.stderr)
 
 
 if __name__ == "__main__":
