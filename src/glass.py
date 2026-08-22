@@ -1,19 +1,14 @@
-"""Lightweight GPU glass surface used by the Qt UI.
-
-This intentionally uses Qt's OpenGL widget rather than forcing a global OpenGL
-backend. The effect is isolated to the glass surface, which is much safer on
-older Mesa drivers and lets the rest of the Qt Widgets UI stay conventional.
-"""
+"""Lightweight GPU liquid-glass surface for the Qt UI."""
 from __future__ import annotations
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QEvent, QTimer, Qt
 from PySide6.QtGui import QOpenGLShader, QOpenGLShaderProgram
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QWidget
 
 
 class LiquidGlass(QOpenGLWidget):
-    """Small procedural glass layer; no textures and no expensive blur passes."""
+    """Procedural glass layer with a tiny shader and no texture uploads."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -22,8 +17,15 @@ class LiquidGlass(QOpenGLWidget):
         self._program: QOpenGLShaderProgram | None = None
         self._time = 0.0
         self._timer = QTimer(self)
-        self._timer.setInterval(33)  # ~30 FPS: plenty for a UI accent on HD 4000
+        self._timer.setInterval(33)
         self._timer.timeout.connect(self._tick)
+        if parent is not None:
+            parent.installEventFilter(self)
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if watched is self.parentWidget() and event.type() == QEvent.Type.Resize:
+            self.setGeometry(watched.rect())
+        return super().eventFilter(watched, event)
 
     def _tick(self) -> None:
         self._time += 0.033
@@ -45,7 +47,7 @@ class LiquidGlass(QOpenGLWidget):
         void main() {
             vec2 p = uv - 0.5;
             float r = length(p);
-            float edge = smoothstep(0.70, 0.42, r);
+            float edge = smoothstep(0.72, 0.38, r);
             float wave = sin((uv.x + time * 0.035) * 8.0 + sin(uv.y * 7.0)) * 0.5 + 0.5;
             float sheen = pow(max(0.0, 1.0 - abs(uv.y - 0.18) * 3.0), 5.0);
             float glow = smoothstep(0.55, 0.0, r);
@@ -56,11 +58,17 @@ class LiquidGlass(QOpenGLWidget):
             gl_FragColor = vec4(light, alpha);
         }
         """
-        self._program = QOpenGLShaderProgram(self)
-        self._program.addShaderFromSourceCode(QOpenGLShader.ShaderTypeBit.Vertex, vertex)
-        self._program.addShaderFromSourceCode(QOpenGLShader.ShaderTypeBit.Fragment, fragment)
-        self._program.link()
-        self._timer.start()
+        program = QOpenGLShaderProgram(self)
+        if not program.addShaderFromSourceCode(QOpenGLShader.ShaderTypeBit.Vertex, vertex):
+            return
+        if not program.addShaderFromSourceCode(QOpenGLShader.ShaderTypeBit.Fragment, fragment):
+            return
+        if not program.link():
+            return
+        self._program = program
+        profile = self._profile()
+        if profile != "Low GPU":
+            self._timer.start()
 
     def paintGL(self) -> None:
         if self._program is None:
@@ -71,12 +79,34 @@ class LiquidGlass(QOpenGLWidget):
         vertices = (-1.0, -1.0, 1.0, -1.0, -1.0, 1.0, 1.0, 1.0)
         self._program.enableAttributeArray("position")
         self._program.setAttributeArray("position", vertices, 2)
-        from OpenGL.GL import glDrawArrays, GL_TRIANGLE_STRIP  # optional PyOpenGL fast path
-        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4)
+        self.context().functions().glDrawArrays(0x0005, 0, 4)  # GL_TRIANGLE_STRIP
         self._program.disableAttributeArray("position")
         self._program.release()
 
+    def _profile(self) -> str:
+        window = self.window()
+        return getattr(getattr(window, "settings", None), "ui_performance", "Balanced")
+
     def _strength(self) -> float:
-        owner = self.parentWidget()
-        profile = getattr(getattr(owner, "_glass_settings", None), "ui_performance", "Balanced")
-        return {"Low GPU": 0.35, "Balanced": 0.62, "Smooth": 0.82}.get(profile, 0.62)
+        return {"Low GPU": 0.30, "Balanced": 0.58, "Smooth": 0.82}.get(self._profile(), 0.58)
+
+
+def install_glass() -> None:
+    """Attach the OpenGL glass layer automatically to the existing sidebar."""
+    if getattr(QWidget, "_liquid_glass_installed", False):
+        return
+    original_show = QWidget.showEvent
+
+    def show_event(widget: QWidget, event: QEvent) -> None:
+        original_show(widget, event)
+        if widget.objectName() != "sidebar" or hasattr(widget, "_liquid_glass"):
+            return
+        glass = LiquidGlass(widget)
+        glass.setGeometry(widget.rect())
+        glass.lower()
+        widget._liquid_glass = glass
+        widget._glass_settings = getattr(widget.window(), "settings", None)
+        glass.show()
+
+    QWidget.showEvent = show_event
+    QWidget._liquid_glass_installed = True
