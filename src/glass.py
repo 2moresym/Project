@@ -1,20 +1,24 @@
-"""Lightweight GPU liquid-glass surface for the Qt UI."""
+"""Lightweight GPU liquid-glass surface for the Qt UI.
+
+Uses QOpenGLWidget with the OpenGL functions exposed by Qt itself. This avoids
+PyOpenGL and the QOpenGLShader Python binding, both of which vary across
+PySide6 installations.
+"""
 from __future__ import annotations
 
 from PySide6.QtCore import QEvent, QObject, QTimer, Qt
-from PySide6.QtGui import QOpenGLShader, QOpenGLShaderProgram
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QWidget
 
 
 class LiquidGlass(QOpenGLWidget):
-    """Procedural glass layer with a tiny shader and no texture uploads."""
+    """Procedural glass layer with a tiny GLSL program."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
-        self._program: QOpenGLShaderProgram | None = None
+        self._program = None
         self._time = 0.0
         self._timer = QTimer(self)
         self._timer.setInterval(33)
@@ -32,6 +36,13 @@ class LiquidGlass(QOpenGLWidget):
         self.update()
 
     def initializeGL(self) -> None:
+        # Qt exposes the OpenGL API through QOpenGLContext.functions().
+        # We compile the tiny shader ourselves so this works without PyOpenGL.
+        funcs = self.context().functions()
+        version = funcs.glGetString(0x1F02)  # GL_VERSION
+        if version is None:
+            return
+
         vertex = """
         attribute vec2 position;
         varying vec2 uv;
@@ -58,29 +69,71 @@ class LiquidGlass(QOpenGLWidget):
             gl_FragColor = vec4(light, alpha);
         }
         """
-        program = QOpenGLShaderProgram(self)
-        if not program.addShaderFromSourceCode(QOpenGLShader.ShaderTypeBit.Vertex, vertex):
+
+        # Use the fixed-function-compatible Qt OpenGL functions for shader
+        # creation. These enums are part of the OpenGL API and avoid importing
+        # optional Python OpenGL packages.
+        GL_VERTEX_SHADER = 0x8B31
+        GL_FRAGMENT_SHADER = 0x8B30
+        GL_COMPILE_STATUS = 0x8B81
+        GL_LINK_STATUS = 0x8B82
+
+        create_shader = getattr(funcs, "glCreateShader", None)
+        create_program = getattr(funcs, "glCreateProgram", None)
+        if create_shader is None or create_program is None:
             return
-        if not program.addShaderFromSourceCode(QOpenGLShader.ShaderTypeBit.Fragment, fragment):
+
+        def compile_shader(shader_type: int, source: str):
+            shader = funcs.glCreateShader(shader_type)
+            funcs.glShaderSource(shader, source)
+            funcs.glCompileShader(shader)
+            if not funcs.glGetShaderiv(shader, GL_COMPILE_STATUS):
+                funcs.glDeleteShader(shader)
+                return None
+            return shader
+
+        vs = compile_shader(GL_VERTEX_SHADER, vertex)
+        fs = compile_shader(GL_FRAGMENT_SHADER, fragment)
+        if vs is None or fs is None:
+            if vs is not None:
+                funcs.glDeleteShader(vs)
+            if fs is not None:
+                funcs.glDeleteShader(fs)
             return
-        if not program.link():
+
+        program = funcs.glCreateProgram()
+        funcs.glAttachShader(program, vs)
+        funcs.glAttachShader(program, fs)
+        funcs.glLinkProgram(program)
+        funcs.glDeleteShader(vs)
+        funcs.glDeleteShader(fs)
+        if not funcs.glGetProgramiv(program, GL_LINK_STATUS):
+            funcs.glDeleteProgram(program)
             return
+
         self._program = program
+        self._position = funcs.glGetAttribLocation(program, "position")
+        self._time_uniform = funcs.glGetUniformLocation(program, "time")
+        self._strength_uniform = funcs.glGetUniformLocation(program, "strength")
         if self._profile() != "Low GPU":
             self._timer.start()
 
     def paintGL(self) -> None:
         if self._program is None:
             return
-        self._program.bind()
-        self._program.setUniformValue("time", self._time)
-        self._program.setUniformValue("strength", self._strength())
+        funcs = self.context().functions()
+        funcs.glUseProgram(self._program)
+        funcs.glUniform1f(self._time_uniform, self._time)
+        funcs.glUniform1f(self._strength_uniform, self._strength())
+
+        # A tiny CPU-side array is enough for one fullscreen triangle strip;
+        # no VBO allocation or texture upload is needed.
         vertices = (-1.0, -1.0, 1.0, -1.0, -1.0, 1.0, 1.0, 1.0)
-        self._program.enableAttributeArray("position")
-        self._program.setAttributeArray("position", vertices, 2)
-        self.context().functions().glDrawArrays(0x0005, 0, 4)
-        self._program.disableAttributeArray("position")
-        self._program.release()
+        funcs.glEnableVertexAttribArray(self._position)
+        funcs.glVertexAttribPointer(self._position, 2, 0x1406, False, 0, vertices)
+        funcs.glDrawArrays(0x0005, 0, 4)  # GL_TRIANGLE_STRIP
+        funcs.glDisableVertexAttribArray(self._position)
+        funcs.glUseProgram(0)
 
     def _profile(self) -> str:
         window = self.window()
