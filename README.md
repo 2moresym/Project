@@ -13,7 +13,7 @@ A tiny, lightweight AI playground for Linux.
 - Streaming responses
 - Conversation search
 - Custom AI names and themes
-- Smart Unicode terminal rendering for common math/LaTeX
+- Smart Unicode terminal rendering for Markdown and common math/LaTeX
 - Offline demo backend when no API token is configured
 
 ## Requirements
@@ -74,10 +74,11 @@ returns to the UI from chat.
 
 ## Terminal rendering
 
-Project defaults to Unicode-friendly rendering for common mathematical notation.
-For example, common LaTeX such as `x^2`, `\\sqrt{x}`, and `\\frac{a}{b}` is
-rendered as readable terminal text such as `x²`, `√x`, and `(a)/(b)`.
-Normal prose is left unchanged.
+Project defaults to Unicode-friendly rendering for common Markdown and
+mathematical notation. Common LaTeX such as `x^2`, `\\sqrt{x}`, and
+`\\frac{a}{b}` is converted to readable terminal text such as `x²`, `√(x)`,
+and `(a)/(b)`. Markdown headings, bullets, simple tables, and math delimiters
+are also normalized while fenced code blocks are preserved.
 
 ## Data
 
