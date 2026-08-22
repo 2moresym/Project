@@ -1,19 +1,19 @@
-"""Desktop entry point for AI Chat."""
+"""Compatibility desktop entry point for the native C++/Qt UI."""
 from __future__ import annotations
+
+import pathlib
+import subprocess
+import sys
 
 
 def main() -> int:
-    try:
-        from .glass import install_glass
-        install_glass()
-        from .qt_gui import main as qt_main
-    except ImportError as exc:
-        if exc.name == "PySide6":
-            print("AI Chat now uses PySide6 for the desktop UI.")
-            print("Install it with: python3 -m pip install -r requirements.txt")
-            return 1
-        raise
-    return qt_main()
+    project_root = pathlib.Path(__file__).resolve().parent.parent
+    native = project_root / "build" / "ai_chat_native"
+    if not native.exists():
+        print("Native desktop UI is not built yet.")
+        print("Run: make native-build")
+        return 1
+    return subprocess.call([str(native)], cwd=project_root)
 
 
 if __name__ == "__main__":
