@@ -20,6 +20,7 @@ A tiny, lightweight AI playground for Linux.
 - Conversation search
 - Custom AI names
 - Smart Unicode rendering for Markdown and common math/LaTeX
+- Native rich-text rendering for headings, bold, italic, inline code, and fenced code blocks
 - Lightweight terminal UI remains available as a fallback
 - Offline demo backend when no API token is configured
 
@@ -82,6 +83,7 @@ much easier to read. It provides:
   sequential prompts
 - Light/dark/system appearance support
 - Native ttk controls instead of custom canvas buttons for smoother edges
+- Rich rendering for Markdown emphasis and code while keeping AI output selectable
 - Persistent local chat/session state
 - Broad-Unicode UI fonts when Noto Sans is installed
 
