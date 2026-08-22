@@ -26,7 +26,7 @@ void main() {
     vec3 tint = vec3(0.25, 0.45, 0.92);
     vec3 light = mix(tint, vec3(0.84, 0.94, 1.0), wave * 0.12);
     light += vec3(0.10, 0.16, 0.30) * sheen;
-    float alpha = strength * edge * (0.34 + glow * 0.17 + sheen * 0.12);
+    float alpha = strength * edge * (0.22 + glow * 0.10 + sheen * 0.08);
     gl_FragColor = vec4(light, alpha);
 }
 )GLSL";
@@ -36,6 +36,8 @@ LiquidGlassWidget::LiquidGlassWidget(QWidget* parent)
     : QOpenGLWidget(parent) {
     setAttribute(Qt::WA_TransparentForMouseEvents, true);
     setAttribute(Qt::WA_NoSystemBackground, true);
+    setAttribute(Qt::WA_TranslucentBackground, true);
+    setAutoFillBackground(false);
     connect(&m_timer, &QTimer::timeout, this, &LiquidGlassWidget::tick);
 }
 
@@ -45,7 +47,8 @@ void LiquidGlassWidget::setPerformanceProfile(const QString& profile) {
     if (m_profile == QStringLiteral("Low GPU")) {
         m_timer.stop();
     } else {
-        m_timer.start(intervalMs());
+        m_timer.setInterval(intervalMs());
+        m_timer.start();
     }
     update();
 }
@@ -99,9 +102,9 @@ void LiquidGlassWidget::tick() {
 }
 
 float LiquidGlassWidget::strength() const {
-    if (m_profile == QStringLiteral("Low GPU")) return 0.25f;
-    if (m_profile == QStringLiteral("Smooth")) return 0.82f;
-    return 0.58f;
+    if (m_profile == QStringLiteral("Low GPU")) return 0.18f;
+    if (m_profile == QStringLiteral("Smooth")) return 0.72f;
+    return 0.45f;
 }
 
 int LiquidGlassWidget::intervalMs() const {
