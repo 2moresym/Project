@@ -4,26 +4,12 @@ A tiny, lightweight AI playground for Linux.
 
 ## Features
 
-- Lightweight Python desktop UI (**AI Chat**) with mouse/keyboard support
-- PySide6 desktop UI with rounded surfaces, subtle animation, and responsive layout
-- GPU liquid-glass sidebar with lightweight OpenGL shader
+- Native C++/Qt desktop UI with GPU OpenGL rendering
+- GPU liquid-glass surface with a lightweight GLSL shader
 - Smart UI performance profiles for older hardware
-- Collapsible chat sidebar with smooth width/fade animation
-- Clean transparent labels and themed dropdown controls
-- Persistent chat list with new, rename, switch, and delete actions
-- Copy/select-all support for AI and user messages
-- Persistent memories and conversation summaries
-- Automatic memory/summarization options
+- Python AI/backend engine retained behind a local process bridge
+- Persistent chat history, memories, and conversation summaries
 - Hugging Face and OpenAI-compatible providers
-- Model and provider switching
-- Unified desktop Settings window with dropdowns and toggles
-- Light, dark, and system appearance modes
-- Accent themes that apply to the desktop UI
-- Background AI requests so the UI stays responsive
-- Conversation search
-- Custom AI names
-- Smart Unicode rendering for Markdown and common math/LaTeX
-- Native rich-text rendering for headings, bold, italic, inline code, and fenced code blocks
 - Lightweight terminal UI remains available as a fallback
 - Offline demo backend when no API token is configured
 
@@ -31,30 +17,39 @@ A tiny, lightweight AI playground for Linux.
 
 - Python 3
 - GNU Make
+- CMake 3.16+
+- Qt 6 development packages with Widgets, OpenGL, and OpenGLWidgets
 - A Python virtual-environment module (`python3-venv` on Debian/Ubuntu)
 
-The desktop UI uses PySide6. The project installs it into a local `.venv` so it
-does not modify Debian/Ubuntu's system-managed Python environment (PEP 668).
+The native desktop renderer is C++/Qt. Python remains responsible for the AI
+provider and conversation backend. The two layers communicate through a small
+line-oriented JSON process bridge.
 
-On Debian/Ubuntu-based systems, install the venv support once if needed:
+On Debian/Ubuntu-based systems, install the build/runtime dependencies once if needed:
 
 ```sh
-sudo apt install python3-venv
+sudo apt install cmake qt6-base-dev python3-venv
 ```
-
-No global `pip install` is required.
 
 ## Build / run
 
 ```sh
 git pull
-make check
+make native-build
 make run
 ```
 
-`make run` automatically creates `.venv` and installs the dependencies from
-`requirements.txt` before launching **AI Chat**. You can also prepare the
-environment without launching the app:
+`make run` configures and builds the native C++ desktop application with CMake,
+then launches it. The Python backend is started automatically by the C++ UI when
+a message is sent.
+
+The compatibility Python entry point also works after the native binary is built:
+
+```sh
+.venv/bin/python -m src.gui
+```
+
+Prepare the Python environment separately when needed:
 
 ```sh
 make setup
@@ -82,37 +77,45 @@ export OPENAI_BASE_URL="https://your-endpoint/v1"
 export OPENAI_MODEL="your-model"
 ```
 
-The provider and model can also be changed from the desktop Settings panel.
+The existing Python provider code remains responsible for API communication.
 
-## Desktop UI
+## Native desktop UI
 
-The desktop app keeps the backend lightweight while using Qt for a smoother
-presentation layer. It provides:
+The desktop presentation layer now lives in C++ so OpenGL and Qt rendering use
+Qt's native C++ APIs instead of Python OpenGL bindings. The current native shell
+provides:
 
-- Collapsible/expandable sidebar with smooth width and fade animation
-- Rounded cards, controls, and input surfaces
-- GPU liquid-glass sidebar rendered with a small Qt OpenGL shader
-- Animated highlight/wave sheen without texture uploads
-- Transparent, correctly themed labels and cleaner dropdowns
-- Smart UI performance profiles:
-  - **Low GPU** — static/light glass and no drop shadow
-  - **Balanced** — animated glass with moderate shader strength (default)
-  - **Smooth** — stronger glass sheen and animation
-- Scrollable selectable conversation view
-- Copy/select-all support
-- Multiline message input
-- Background requests so the window does not freeze during API calls
-- Memory viewer
-- AI name, provider, model, appearance, accent theme, UI performance,
-  streaming, automatic-memory, and automatic-summary controls in one Settings window
-- Dropdowns for provider, model, appearance, accent theme, and UI performance
-- Light/dark/system appearance support
-- Unicode and rich Markdown/math rendering
-- Persistent local chat/session state
+- Rounded sidebar and chat surface
+- GPU liquid-glass shader surface
+- Three performance profiles:
+  - **Low GPU** — lighter static glass
+  - **Balanced** — animated glass at a modest update rate (default)
+  - **Smooth** — stronger glass with faster animation
+- Non-blocking C++ UI while the Python backend performs AI requests
+- Existing Python `Chat` and provider logic preserved behind `src/backend_bridge.py`
 
-The glass effect is intentionally local to the sidebar rather than forcing a
-global OpenGL backend. This avoids changing Qt's rendering path for the entire
-application and keeps the effect conservative for older Mesa/Intel hardware.
+The glass renderer is isolated to its own `QOpenGLWidget`; it does not require a
+global OpenGL backend switch for the entire application.
+
+## Architecture
+
+```text
+Project/
+├── cpp/
+│   ├── main.cpp                 # native Qt desktop shell
+│   ├── LiquidGlassWidget.cpp    # C++ OpenGL/GLSL renderer
+│   └── LiquidGlassWidget.hpp
+├── src/
+│   ├── backend_bridge.py        # JSON bridge used by the native UI
+│   ├── chat.py                  # conversation and memory state
+│   ├── providers.py             # API providers
+│   ├── gui.py                   # compatibility launcher for native UI
+│   └── main.py                  # terminal UI
+└── CMakeLists.txt               # native desktop build
+```
+
+This migration is intentional: C++ owns the performance-sensitive presentation
+and rendering path, while Python keeps the flexible AI/backend code.
 
 ## Icons
 
@@ -137,29 +140,3 @@ supports commands such as:
 - `/name <name>` — rename the AI
 - `/save` — save state
 - `/quit` — save and exit
-
-## Data
-
-Local conversations, memories, summaries, and settings are stored under
-`data/`. Keep API keys in environment variables rather than committing them
-to the repository.
-
-## Architecture
-
-The project keeps the AI backend separate from its presentation layers:
-
-```text
-src/
-├── qt_gui.py            # PySide6 desktop UI
-├── glass.py             # isolated GPU liquid-glass OpenGL layer
-├── gui.py               # compatibility desktop entry point
-├── main.py              # terminal UI
-├── chat.py              # conversation and memory state
-├── providers.py         # API providers
-├── sessions.py          # persistent chats
-├── settings.py          # persistent settings
-└── terminal_render.py   # terminal Markdown/math rendering
-```
-
-The project is deliberately lightweight so it remains practical on older Linux
-hardware while leaving room for additional features.
