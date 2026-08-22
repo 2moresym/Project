@@ -11,9 +11,12 @@ A tiny, lightweight AI playground for Linux.
 - Hugging Face and OpenAI-compatible providers
 - Model and provider switching
 - Unified desktop Settings window with dropdowns and toggles
+- Light, dark, and system appearance modes
+- Accent themes that apply to the desktop UI
+- Rounded, lightweight custom UI controls
 - Background AI requests so the UI stays responsive
 - Conversation search
-- Custom AI names and themes
+- Custom AI names
 - Smart Unicode rendering for Markdown and common math/LaTeX
 - Lightweight terminal UI remains available as a fallback
 - Offline demo backend when no API token is configured
@@ -70,9 +73,12 @@ much easier to read. It provides:
 - Multiline message input
 - Background requests so the window does not freeze during API calls
 - Memory viewer
-- AI name, provider, model, theme, streaming, automatic-memory, and
-  automatic-summary controls in one Settings window
-- Dropdowns for provider, model, and theme instead of sequential prompts
+- AI name, provider, model, appearance, accent theme, streaming,
+  automatic-memory, and automatic-summary controls in one Settings window
+- Dropdowns for provider, model, appearance, and accent theme instead of
+  sequential prompts
+- Light/dark/system appearance support
+- Rounded buttons and cleaner panel/input styling
 - Persistent local chat/session state
 - Broad-Unicode UI fonts when Noto Sans is installed
 
