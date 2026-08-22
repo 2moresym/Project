@@ -4,6 +4,8 @@ from __future__ import annotations
 
 def main() -> int:
     try:
+        from .glass import install_glass
+        install_glass()
         from .qt_gui import main as qt_main
     except ImportError as exc:
         if exc.name == "PySide6":
