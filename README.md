@@ -13,6 +13,7 @@ A tiny, lightweight AI playground for Linux.
 - Streaming responses
 - Conversation search
 - Custom AI names and themes
+- Smart Unicode terminal rendering for common math/LaTeX
 - Offline demo backend when no API token is configured
 
 ## Requirements
@@ -71,6 +72,13 @@ The exact provider/model can also be changed from the UI.
 Inside the UI, use **↑/↓ or W/S**, then **Enter** to select. **Escape**
 returns to the UI from chat.
 
+## Terminal rendering
+
+Project defaults to Unicode-friendly rendering for common mathematical notation.
+For example, common LaTeX such as `x^2`, `\\sqrt{x}`, and `\\frac{a}{b}` is
+rendered as readable terminal text such as `x²`, `√x`, and `(a)/(b)`.
+Normal prose is left unchanged.
+
 ## Data
 
 Local conversations, memories, summaries, and settings are stored under
@@ -80,9 +88,9 @@ to the repository.
 ## Architecture
 
 The project is split into small modules for configuration, settings, providers,
-chat state, sessions, and the terminal controller. The provider layer is
-replaceable, allowing remote APIs or the offline demo backend to share the same
-chat interface.
+chat state, sessions, terminal rendering, and the terminal controller. The
+provider layer is replaceable, allowing remote APIs or the offline demo backend
+to share the same chat interface.
 
 The project is deliberately lightweight so it remains practical on older Linux
 hardware while leaving room for additional features.
