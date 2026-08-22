@@ -1,7 +1,7 @@
 """Lightweight GPU liquid-glass surface for the Qt UI."""
 from __future__ import annotations
 
-from PySide6.QtCore import QEvent, QTimer, Qt
+from PySide6.QtCore import QEvent, QObject, QTimer, Qt
 from PySide6.QtGui import QOpenGLShader, QOpenGLShaderProgram
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QWidget
@@ -66,8 +66,7 @@ class LiquidGlass(QOpenGLWidget):
         if not program.link():
             return
         self._program = program
-        profile = self._profile()
-        if profile != "Low GPU":
+        if self._profile() != "Low GPU":
             self._timer.start()
 
     def paintGL(self) -> None:
@@ -79,7 +78,7 @@ class LiquidGlass(QOpenGLWidget):
         vertices = (-1.0, -1.0, 1.0, -1.0, -1.0, 1.0, 1.0, 1.0)
         self._program.enableAttributeArray("position")
         self._program.setAttributeArray("position", vertices, 2)
-        self.context().functions().glDrawArrays(0x0005, 0, 4)  # GL_TRIANGLE_STRIP
+        self.context().functions().glDrawArrays(0x0005, 0, 4)
         self._program.disableAttributeArray("position")
         self._program.release()
 
