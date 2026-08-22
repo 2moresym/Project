@@ -7,6 +7,7 @@ from .config import DEFAULT_MODEL, MODELS
 from .providers import make_provider
 from .sessions import SessionStore, safe_name
 from .settings import Settings, THEMES
+from .terminal_render import render
 
 HELP="""Commands: /ui /chat /new <name> /search <text> /memory /remember <text> /forget <n> /clear /model /models /provider /theme /name <name> /save /quit"""
 
@@ -40,37 +41,24 @@ def cooked(fd,old,prompt):
 
 def read_chat_line(fd,old,prompt):
     """Small raw-mode line editor so Escape can leave chat immediately."""
-    termios.tcsetattr(fd,termios.TCSADRAIN,old)
-    tty.setcbreak(fd)
-    sys.stdout.write(prompt);sys.stdout.flush()
-    chars=[]
+    termios.tcsetattr(fd,termios.TCSADRAIN,old); tty.setcbreak(fd); sys.stdout.write(prompt);sys.stdout.flush();chars=[]
     try:
         while True:
             c=byte(fd)
             if not c: continue
             if c=="\x1b":
-                # Consume an arrow/function-key sequence if present; a bare
-                # Escape returns to the UI immediately.
                 if select.select([fd],[],[],0.04)[0] and byte(fd)=="[":
                     while select.select([fd],[],[],0.01)[0]:
                         if byte(fd) in "~ABCDEFGH": break
                     continue
-                sys.stdout.write("\n");sys.stdout.flush()
-                return None
-            if c in "\r\n":
-                sys.stdout.write("\n");sys.stdout.flush()
-                return "".join(chars).strip()
+                sys.stdout.write("\n");sys.stdout.flush();return None
+            if c in "\r\n":sys.stdout.write("\n");sys.stdout.flush();return "".join(chars).strip()
             if c in ("\x7f","\b"):
-                if chars:
-                    chars.pop();sys.stdout.write("\b \b");sys.stdout.flush()
+                if chars:chars.pop();sys.stdout.write("\b \b");sys.stdout.flush()
                 continue
-            if c=="\x03":
-                sys.stdout.write("\n");sys.stdout.flush()
-                return "/quit"
-            if c.isprintable():
-                chars.append(c);sys.stdout.write(c);sys.stdout.flush()
-    finally:
-        termios.tcsetattr(fd,termios.TCSADRAIN,old)
+            if c=="\x03":sys.stdout.write("\n");sys.stdout.flush();return "/quit"
+            if c.isprintable():chars.append(c);sys.stdout.write(c);sys.stdout.flush()
+    finally:termios.tcsetattr(fd,termios.TCSADRAIN,old)
 
 def pause(fd,old):cooked(fd,old,"Press Enter to continue...")
 def rebuild(chat,s):chat.provider=make_provider(s.model,s.provider)
@@ -98,7 +86,7 @@ def menu(title,opts,s,fd,index=0):
 
 def search_view(chat,q,fd,old,s):
     clear();print(f"Search: {q}\n");r=chat.search(q);print("No matches." if not r else "")
-    for m in r:print(f"{'You' if m['role']=='user' else chat.ai_name}: {m['content']}\n")
+    for m in r:print(f"{'You' if m['role']=='user' else chat.ai_name}: {render(m['content'])}\n")
     pause(fd,old)
 
 def chat_menu(store,current,s,fd,old):
@@ -165,8 +153,7 @@ def chat_loop(store,current,s):
     fd=sys.stdin.fileno();old=termios.tcgetattr(fd)
     while True:
         text=read_chat_line(fd,old,"you> ")
-        if text is None:
-            clear();return 1
+        if text is None:clear();return 1
         if not text:continue
         if text in {"/quit","/exit"}:store.save(current,chat);s.save();return 0
         if text=="/ui":clear();return 1
@@ -183,7 +170,7 @@ def chat_loop(store,current,s):
             else:print("Usage: /forget <number>")
             continue
         if text.startswith("/search"):
-            q=text[7:].strip();r=chat.search(q);print(f"Matches: {len(r)}");[print(f"{'You' if m['role']=='user' else chat.ai_name}: {m['content']}") for m in r];continue
+            q=text[7:].strip();r=chat.search(q);print(f"Matches: {len(r)}");[print(f"{'You' if m['role']=='user' else chat.ai_name}: {render(m['content'])}") for m in r];continue
         if text=="/clear":chat.messages.clear();chat.summary="";store.save(current,chat);print("Conversation cleared; memories kept.");continue
         if text=="/save":store.save(current,chat);s.save();print("Saved.");continue
         if text=="/model":print(s.model);continue
@@ -204,9 +191,9 @@ def chat_loop(store,current,s):
             chat.messages.append({"role":"user","content":text});pieces=[]
             if s.stream and hasattr(chat.provider,"stream_reply"):
                 print(f"{chat.ai_name}> ",end="",flush=True)
-                for piece in chat.provider.stream_reply(chat.context_messages()):print(piece,end="",flush=True);pieces.append(piece)
+                for piece in chat.provider.stream_reply(chat.context_messages()):print(render(piece),end="",flush=True);pieces.append(piece)
                 answer="".join(pieces).strip();print("\n")
-            else:answer=chat.provider.reply(chat.context_messages());print(f"{chat.ai_name}> {answer}\n")
+            else:answer=chat.provider.reply(chat.context_messages());print(f"{chat.ai_name}> {render(answer)}\n")
             chat.messages.append({"role":"assistant","content":answer})
             if s.auto_memory:chat.auto_remember(text)
             if s.auto_summary:chat.maybe_summarize()
