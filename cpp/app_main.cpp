@@ -28,6 +28,7 @@
 #include <QScrollBar>
 #include <QSettings>
 #include <QStackedWidget>
+#include <QTabWidget>
 #include <QTextEdit>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -49,18 +50,14 @@ const QStringList kOpenAiModels = {
     QStringLiteral("gpt-5-mini")
 };
 
-QStringList modelsFor(const QString& provider) {
-    return provider == QStringLiteral("openai") ? kOpenAiModels : kHfModels;
-}
-
 bool hasCredential(const QString& provider) {
     QSettings s;
-    if (provider == QStringLiteral("openai")) {
-        return !s.value(QStringLiteral("openai_key")).toString().trimmed().isEmpty() ||
-               !qEnvironmentVariable("OPENAI_API_KEY").trimmed().isEmpty();
-    }
-    return !s.value(QStringLiteral("hf_token")).toString().trimmed().isEmpty() ||
-           !qEnvironmentVariable("HF_TOKEN").trimmed().isEmpty();
+    const bool hf = !s.value(QStringLiteral("hf_token")).toString().trimmed().isEmpty() ||
+                    !qEnvironmentVariable("HF_TOKEN").trimmed().isEmpty();
+    const bool openai = !s.value(QStringLiteral("openai_key")).toString().trimmed().isEmpty() ||
+                        !qEnvironmentVariable("OPENAI_API_KEY").trimmed().isEmpty();
+    if (provider == QStringLiteral("openai")) return openai;
+    return hf || openai;
 }
 
 class SettingsDialog final : public QDialog {
@@ -159,7 +156,12 @@ public:
 private:
     void load() {
         QSettings s;
-        const QString provider = s.value(QStringLiteral("provider"), QStringLiteral("huggingface")).toString();
+        const QString savedProvider = s.value(QStringLiteral("provider")).toString();
+        QString provider = savedProvider;
+        if (provider.isEmpty()) {
+            if (!qEnvironmentVariable("OPENAI_API_KEY").trimmed().isEmpty()) provider = QStringLiteral("openai");
+            else provider = QStringLiteral("huggingface");
+        }
         m_provider->setCurrentIndex(provider == QStringLiteral("openai") ? 1 : 0);
 
         m_aiName->setText(s.value(QStringLiteral("ai_name"), QStringLiteral("Vaxx")).toString());
@@ -194,8 +196,7 @@ private:
     }
 
     void providerChanged(const QString& text) {
-        const bool openai = text == QStringLiteral("OpenAI-compatible");
-        m_providerPages->setCurrentIndex(openai ? 1 : 0);
+        m_providerPages->setCurrentIndex(text == QStringLiteral("OpenAI-compatible") ? 1 : 0);
     }
 
     void save() {
@@ -261,14 +262,13 @@ public:
         buildUi();
         startBackend();
         QSettings s;
-        const QString provider = s.value(QStringLiteral("provider"), QStringLiteral("huggingface")).toString();
+        const QString provider = s.value(QStringLiteral("provider")).toString().isEmpty()
+            ? (!qEnvironmentVariable("OPENAI_API_KEY").trimmed().isEmpty() ? QStringLiteral("openai") : QStringLiteral("huggingface"))
+            : s.value(QStringLiteral("provider")).toString();
         if (!hasCredential(provider)) QTimer::singleShot(250, this, &NativeWindow::showSettings);
     }
 
-    ~NativeWindow() override {
-        m_typeTimer.stop();
-        stopBackend();
-    }
+    ~NativeWindow() override { m_typeTimer.stop(); stopBackend(); }
 
 private:
     void buildUi() {
@@ -440,10 +440,7 @@ private:
         if (!m_backend->waitForFinished(700)) m_backend->kill();
     }
 
-    void restartBackend() {
-        stopBackend();
-        startBackend();
-    }
+    void restartBackend() { stopBackend(); startBackend(); }
 
     void sendMessage() {
         const QString text = m_entry->toPlainText().trimmed();
