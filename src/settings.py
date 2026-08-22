@@ -8,8 +8,9 @@ class Settings:
     model: str = DEFAULT_MODEL
     provider: str = "huggingface"
     ai_name: str = DEFAULT_AI_NAME
-    theme: str = "default"  # accent theme
-    appearance: str = "system"  # system, light, dark
+    theme: str = "default"
+    appearance: str = "system"
+    ui_performance: str = "Balanced"
     stream: bool = True
     auto_memory: bool = True
     auto_summary: bool = True
@@ -37,6 +38,7 @@ THEMES={
 }
 
 APPEARANCES=("system", "light", "dark")
+UI_PERFORMANCE=("Low GPU", "Balanced", "Smooth")
 
 
 def effective_appearance(appearance: str) -> str:
