@@ -6,8 +6,12 @@
 #include <QDateTime>
 #include <QDialog>
 #include <QFormLayout>
+#include <QFrame>
 #include <QHBoxLayout>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QMainWindow>
 #include <QMessageBox>
@@ -80,6 +84,7 @@ private:
         s.setValue(QStringLiteral("openai_key"), m_openaiKey->text().trimmed());
         s.setValue(QStringLiteral("openai_base_url"), m_baseUrl->text().trimmed());
         s.setValue(QStringLiteral("model"), m_model->text().trimmed());
+        s.sync();
         accept();
     }
 
@@ -208,25 +213,15 @@ private:
         setCentralWidget(root);
 
         connect(m_send, &QPushButton::clicked, this, &NativeWindow::sendMessage);
-        connect(m_entry, &QTextEdit::textChanged, this, [this]() {
-            if (!m_waiting && !m_typing) m_send->setEnabled(!m_entry->toPlainText().trimmed().isEmpty());
-        });
+        connect(m_entry, &QTextEdit::textChanged, this, [this]() { if (!m_waiting && !m_typing) m_send->setEnabled(!m_entry->toPlainText().trimmed().isEmpty()); });
         connect(newChat, &QPushButton::clicked, this, &NativeWindow::newChat);
         connect(provider, &QPushButton::clicked, this, &NativeWindow::showProviderSetup);
         connect(memory, &QPushButton::clicked, this, &NativeWindow::showMemory);
         connect(settings, &QPushButton::clicked, this, &NativeWindow::showSettings);
         connect(debug, &QPushButton::clicked, this, &NativeWindow::showDebug);
         connect(m_backend, &QProcess::readyReadStandardOutput, this, &NativeWindow::readBackend);
-        connect(m_backend, &QProcess::readyReadStandardError, this, [this]() {
-            const auto text = m_backend->readAllStandardError().trimmed();
-            if (!text.isEmpty()) log(QStringLiteral("backend stderr: %1").arg(QString::fromUtf8(text)));
-        });
-        connect(m_backend, &QProcess::errorOccurred, this, [this](QProcess::ProcessError) {
-            log(QStringLiteral("backend error: %1").arg(m_backend->errorString()));
-            setStatus(QStringLiteral("●  Backend error"));
-            m_waiting = false;
-            m_send->setEnabled(!m_entry->toPlainText().trimmed().isEmpty());
-        });
+        connect(m_backend, &QProcess::readyReadStandardError, this, [this]() { const auto text = m_backend->readAllStandardError().trimmed(); if (!text.isEmpty()) log(QStringLiteral("backend stderr: %1").arg(QString::fromUtf8(text))); });
+        connect(m_backend, &QProcess::errorOccurred, this, [this](QProcess::ProcessError) { log(QStringLiteral("backend error: %1").arg(m_backend->errorString())); setStatus(QStringLiteral("●  Backend error")); m_waiting = false; m_send->setEnabled(!m_entry->toPlainText().trimmed().isEmpty()); });
         m_typeTimer.setInterval(14);
         connect(&m_typeTimer, &QTimer::timeout, this, &NativeWindow::typeNextCharacter);
         applyStyle();
@@ -276,13 +271,7 @@ private:
         m_backend->start();
     }
 
-    void stopBackend() {
-        if (m_backend->state() == QProcess::NotRunning) return;
-        m_backend->closeWriteChannel();
-        m_backend->terminate();
-        if (!m_backend->waitForFinished(500)) m_backend->kill();
-    }
-
+    void stopBackend() { if (m_backend->state() != QProcess::NotRunning) { m_backend->terminate(); if (!m_backend->waitForFinished(500)) m_backend->kill(); } }
     void restartBackend() { stopBackend(); startBackend(); }
 
     void sendMessage() {
@@ -291,13 +280,8 @@ private:
         startBackend();
         if (!m_backend->waitForStarted(1000)) return;
         addBubble(QStringLiteral("You"), text, false);
-        m_entry->clear();
-        m_waiting = true;
-        m_send->setEnabled(false);
-        setStatus(QStringLiteral("●  Thinking…"));
-        QJsonObject object;
-        object.insert(QStringLiteral("action"), QStringLiteral("reply"));
-        object.insert(QStringLiteral("text"), text);
+        m_entry->clear(); m_waiting = true; m_send->setEnabled(false); setStatus(QStringLiteral("●  Thinking…"));
+        QJsonObject object; object.insert(QStringLiteral("action"), QStringLiteral("reply")); object.insert(QStringLiteral("text"), text);
         m_backend->write(QJsonDocument(object).toJson(QJsonDocument::Compact) + '\n');
     }
 
@@ -309,130 +293,36 @@ private:
             const auto object = doc.object();
             if (m_memoryRequest) {
                 m_memoryRequest = false;
-                QStringList values;
-                for (const auto& value : object.value(QStringLiteral("memories")).toArray()) values << value.toString();
+                QStringList values; for (const auto& value : object.value(QStringLiteral("memories")).toArray()) values << value.toString();
                 QMessageBox::information(this, QStringLiteral("Memory"), values.isEmpty() ? QStringLiteral("No saved memories.") : values.join(QStringLiteral("\n\n")));
                 continue;
             }
-            if (!object.value(QStringLiteral("ok")).toBool()) {
-                addBubble(QStringLiteral("Vaxx"), QStringLiteral("Something went wrong: %1").arg(object.value(QStringLiteral("error")).toString()), true);
-                finishTyping();
-                continue;
-            }
+            if (!object.value(QStringLiteral("ok")).toBool()) { addBubble(QStringLiteral("Vaxx"), QStringLiteral("Something went wrong: %1").arg(object.value(QStringLiteral("error")).toString()), true); finishTyping(); continue; }
             m_typingBubble = addBubble(QStringLiteral("Vaxx"), QStringLiteral("▌"), true);
-            m_typedText = object.value(QStringLiteral("answer")).toString();
-            m_typeIndex = 0;
-            m_waiting = false;
-            m_typing = true;
-            m_typeTimer.start();
-            setStatus(QStringLiteral("●  Typing…"));
+            m_typedText = object.value(QStringLiteral("answer")).toString(); m_typeIndex = 0; m_waiting = false; m_typing = true; m_typeTimer.start(); setStatus(QStringLiteral("●  Typing…"));
         }
     }
 
     ChatBubble* addBubble(const QString& sender, const QString& text, bool assistant) {
-        auto* row = new QWidget(m_conversation);
-        auto* rowLayout = new QHBoxLayout(row);
-        rowLayout->setContentsMargins(0, 0, 0, 0);
+        auto* row = new QWidget(m_conversation); auto* rowLayout = new QHBoxLayout(row); rowLayout->setContentsMargins(0, 0, 0, 0);
         auto* bubble = new ChatBubble(sender, text, assistant, row);
-        if (assistant) {
-            rowLayout->addStretch();
-            rowLayout->addWidget(bubble, 0, Qt::AlignRight);
-        } else {
-            rowLayout->addWidget(bubble, 0, Qt::AlignLeft);
-            rowLayout->addStretch();
-        }
-        m_conversationLayout->insertWidget(m_conversationLayout->count() - 1, row);
-        scrollToBottom();
-        return bubble;
+        if (assistant) { rowLayout->addStretch(); rowLayout->addWidget(bubble, 0, Qt::AlignRight); } else { rowLayout->addWidget(bubble, 0, Qt::AlignLeft); rowLayout->addStretch(); }
+        m_conversationLayout->insertWidget(m_conversationLayout->count() - 1, row); scrollToBottom(); return bubble;
     }
 
-    void typeNextCharacter() {
-        if (!m_typingBubble) return;
-        if (m_typeIndex >= m_typedText.size()) { finishTyping(); return; }
-        ++m_typeIndex;
-        m_typingBubble->setText(m_typedText.left(m_typeIndex) + QStringLiteral("▌"));
-        scrollToBottom();
-    }
+    void typeNextCharacter() { if (!m_typingBubble) return; if (m_typeIndex >= m_typedText.size()) { finishTyping(); return; } ++m_typeIndex; m_typingBubble->setText(m_typedText.left(m_typeIndex) + QStringLiteral("▌")); scrollToBottom(); }
+    void finishTyping() { m_typeTimer.stop(); if (m_typingBubble) m_typingBubble->setText(m_typedText); m_typingBubble = nullptr; m_typedText.clear(); m_typeIndex = 0; m_typing = false; m_waiting = false; setStatus(QStringLiteral("●  Ready")); m_send->setEnabled(!m_entry->toPlainText().trimmed().isEmpty()); }
+    void scrollToBottom() { QTimer::singleShot(0, this, [this]() { auto* bar = m_scroll->verticalScrollBar(); bar->setValue(bar->maximum()); }); }
 
-    void finishTyping() {
-        m_typeTimer.stop();
-        if (m_typingBubble) m_typingBubble->setText(m_typedText);
-        m_typingBubble = nullptr;
-        m_typedText.clear();
-        m_typeIndex = 0;
-        m_typing = false;
-        m_waiting = false;
-        setStatus(QStringLiteral("●  Ready"));
-        m_send->setEnabled(!m_entry->toPlainText().trimmed().isEmpty());
-    }
-
-    void scrollToBottom() {
-        QTimer::singleShot(0, this, [this]() { auto* bar = m_scroll->verticalScrollBar(); bar->setValue(bar->maximum()); });
-    }
-
-    void newChat() {
-        if (m_waiting || m_typing) return;
-        while (m_conversationLayout->count() > 1) {
-            auto* item = m_conversationLayout->takeAt(0);
-            if (auto* widget = item->widget()) widget->deleteLater();
-            delete item;
-        }
-        setStatus(QStringLiteral("●  New chat"));
-    }
-
-    void showProviderSetup() {
-        ProviderDialog dialog(this);
-        if (dialog.exec() == QDialog::Accepted) {
-            restartBackend();
-            setStatus(QStringLiteral("●  Provider saved"));
-            log(QStringLiteral("provider settings updated"));
-        }
-    }
-
-    void showMemory() {
-        startBackend();
-        if (!m_backend->waitForStarted(1000)) return;
-        m_memoryRequest = true;
-        QJsonObject object;
-        object.insert(QStringLiteral("action"), QStringLiteral("memory"));
-        m_backend->write(QJsonDocument(object).toJson(QJsonDocument::Compact) + '\n');
-    }
-
-    void showSettings() {
-        QMessageBox::information(this, QStringLiteral("Settings"), QStringLiteral("Use 'AI provider & API key' to configure your provider, credentials, endpoint, and model. The app keeps UI rendering native and lightweight for older Linux hardware."));
-    }
-
-    void showDebug() {
-        log(QStringLiteral("Qt: %1").arg(QT_VERSION_STR));
-        log(QStringLiteral("backend state: %1").arg(m_backend->state()));
-        log(QStringLiteral("provider: %1").arg(QSettings().value(QStringLiteral("provider"), QStringLiteral("huggingface")).toString()));
-        DebugDialog dialog(m_logs, this);
-        dialog.exec();
-    }
-
-    void log(const QString& message) {
-        m_logs << QStringLiteral("[%1] %2").arg(QDateTime::currentDateTime().toString(Qt::ISODate), message);
-        if (m_logs.size() > 300) m_logs.removeFirst();
-    }
-
+    void newChat() { if (m_waiting || m_typing) return; while (m_conversationLayout->count() > 1) { auto* item = m_conversationLayout->takeAt(0); if (auto* widget = item->widget()) widget->deleteLater(); delete item; } setStatus(QStringLiteral("●  New chat")); }
+    void showProviderSetup() { ProviderDialog dialog(this); if (dialog.exec() == QDialog::Accepted) { restartBackend(); setStatus(QStringLiteral("●  Provider saved")); log(QStringLiteral("provider settings updated")); } }
+    void showMemory() { startBackend(); if (!m_backend->waitForStarted(1000)) return; m_memoryRequest = true; QJsonObject object; object.insert(QStringLiteral("action"), QStringLiteral("memory")); m_backend->write(QJsonDocument(object).toJson(QJsonDocument::Compact) + '\n'); }
+    void showSettings() { showProviderSetup(); }
+    void showDebug() { log(QStringLiteral("Qt: %1").arg(QT_VERSION_STR)); log(QStringLiteral("backend state: %1").arg(m_backend->state())); log(QStringLiteral("provider: %1").arg(QSettings().value(QStringLiteral("provider"), QStringLiteral("huggingface")).toString())); DebugDialog dialog(m_logs, this); dialog.exec(); }
+    void log(const QString& message) { m_logs << QStringLiteral("[%1] %2").arg(QDateTime::currentDateTime().toString(Qt::ISODate), message); if (m_logs.size() > 300) m_logs.removeFirst(); }
     void setStatus(const QString& status) { m_status->setText(status); }
 
-    QProcess* m_backend = nullptr;
-    QListWidget* m_chatList = nullptr;
-    QLabel* m_status = nullptr;
-    QScrollArea* m_scroll = nullptr;
-    QWidget* m_conversation = nullptr;
-    QVBoxLayout* m_conversationLayout = nullptr;
-    QTextEdit* m_entry = nullptr;
-    QPushButton* m_send = nullptr;
-    QTimer m_typeTimer;
-    ChatBubble* m_typingBubble = nullptr;
-    QString m_typedText;
-    int m_typeIndex = 0;
-    bool m_waiting = false;
-    bool m_typing = false;
-    bool m_memoryRequest = false;
-    QStringList m_logs;
+    QProcess* m_backend = nullptr; QListWidget* m_chatList = nullptr; QLabel* m_status = nullptr; QScrollArea* m_scroll = nullptr; QWidget* m_conversation = nullptr; QVBoxLayout* m_conversationLayout = nullptr; QTextEdit* m_entry = nullptr; QPushButton* m_send = nullptr; QTimer m_typeTimer; ChatBubble* m_typingBubble = nullptr; QString m_typedText; int m_typeIndex = 0; bool m_waiting = false; bool m_typing = false; bool m_memoryRequest = false; QStringList m_logs;
 };
 
 int main(int argc, char** argv) {
