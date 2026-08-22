@@ -6,11 +6,11 @@ import re
 import sys
 import threading
 
-from PySide6.QtCore import QEasingCurve, QGraphicsOpacityEffect, QParallelAnimationGroup, QPropertyAnimation, Qt, Signal, QObject
+from PySide6.QtCore import QEasingCurve, QParallelAnimationGroup, QPropertyAnimation, Qt, Signal, QObject
 from PySide6.QtGui import QIcon, QTextCursor
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDialog, QFormLayout,
-    QGraphicsDropShadowEffect, QHBoxLayout, QInputDialog, QLabel,
+    QGraphicsDropShadowEffect, QGraphicsOpacityEffect, QHBoxLayout, QInputDialog, QLabel,
     QLineEdit, QListWidget, QMainWindow, QMessageBox, QPushButton,
     QTextBrowser, QTextEdit, QToolButton, QVBoxLayout, QWidget,
 )
