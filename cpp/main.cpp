@@ -3,8 +3,11 @@
 #include <QApplication>
 #include <QComboBox>
 #include <QHBoxLayout>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLabel>
 #include <QMainWindow>
+#include <QProcess>
 #include <QPushButton>
 #include <QTextBrowser>
 #include <QTextEdit>
@@ -13,7 +16,7 @@
 
 class MainWindow final : public QMainWindow {
 public:
-    MainWindow() {
+    MainWindow() : m_backend(new QProcess(this)) {
         setWindowTitle(QStringLiteral("AI Chat — Vaxx"));
         resize(1120, 740);
         setMinimumSize(820, 580);
@@ -46,10 +49,8 @@ public:
         glass->setMinimumHeight(180);
         sideLayout->addWidget(glass, 1);
 
-        auto* memory = new QPushButton(QStringLiteral("Memory"));
-        auto* settings = new QPushButton(QStringLiteral("Settings"));
-        sideLayout->addWidget(memory);
-        sideLayout->addWidget(settings);
+        sideLayout->addWidget(new QPushButton(QStringLiteral("Memory")));
+        sideLayout->addWidget(new QPushButton(QStringLiteral("Settings")));
         layout->addWidget(sidebar);
 
         auto* main = new QWidget;
@@ -57,25 +58,25 @@ public:
         mainLayout->setContentsMargins(4, 4, 4, 4);
         mainLayout->setSpacing(10);
 
-        auto* header = new QLabel(QStringLiteral("Vaxx  ·  main"));
-        header->setObjectName(QStringLiteral("header"));
-        mainLayout->addWidget(header);
+        m_header = new QLabel(QStringLiteral("Vaxx  ·  main"));
+        m_header->setObjectName(QStringLiteral("header"));
+        mainLayout->addWidget(m_header);
 
-        auto* output = new QTextBrowser;
-        output->setOpenExternalLinks(true);
-        output->setHtml(QStringLiteral(
+        m_output = new QTextBrowser;
+        m_output->setOpenExternalLinks(true);
+        m_output->setHtml(QStringLiteral(
             "<p><b>Vaxx</b></p>"
             "<p>C++ GPU renderer online.</p>"
-            "<p>The AI backend remains Python.</p>"));
-        mainLayout->addWidget(output, 1);
+            "<p>Python AI backend connected through a local process bridge.</p>"));
+        mainLayout->addWidget(m_output, 1);
 
         auto* bottom = new QHBoxLayout;
-        auto* entry = new QTextEdit;
-        entry->setPlaceholderText(QStringLiteral("Message Vaxx…"));
-        entry->setFixedHeight(92);
-        auto* send = new QPushButton(QStringLiteral("Send  ↑"));
-        bottom->addWidget(entry, 1);
-        bottom->addWidget(send);
+        m_entry = new QTextEdit;
+        m_entry->setPlaceholderText(QStringLiteral("Message Vaxx…"));
+        m_entry->setFixedHeight(92);
+        m_send = new QPushButton(QStringLiteral("Send  ↑"));
+        bottom->addWidget(m_entry, 1);
+        bottom->addWidget(m_send);
         mainLayout->addLayout(bottom);
         layout->addWidget(main, 1);
         setCentralWidget(root);
@@ -83,6 +84,19 @@ public:
         connect(performance, &QComboBox::currentTextChanged,
                 glass, &LiquidGlassWidget::setPerformanceProfile);
         glass->setPerformanceProfile(performance->currentText());
+        connect(m_send, &QPushButton::clicked, this, &MainWindow::sendMessage);
+        connect(m_entry, &QTextEdit::textChanged, this, [this]() {
+            m_send->setEnabled(!m_entry->toPlainText().trimmed().isEmpty());
+        });
+        m_send->setEnabled(false);
+
+        connect(m_backend, &QProcess::readyReadStandardOutput,
+                this, &MainWindow::readBackend);
+        connect(m_backend, &QProcess::errorOccurred,
+                this, [this](QProcess::ProcessError) {
+                    m_output->append(QStringLiteral("<p><b>Backend error:</b> %1</p>").arg(m_backend->errorString().toHtmlEscaped()));
+                    m_send->setEnabled(true);
+                });
 
         setStyleSheet(QStringLiteral(
             "QMainWindow,QWidget{background:#111318;color:#f2f4f7;font-family:'Noto Sans';font-size:11pt;}"
@@ -95,6 +109,74 @@ public:
             "border:1px solid #2a303b;border-radius:15px;padding:10px;}"
         ));
     }
+
+    ~MainWindow() override {
+        if (m_backend) {
+            m_backend->closeWriteChannel();
+            m_backend->terminate();
+            if (!m_backend->waitForFinished(500)) m_backend->kill();
+        }
+    }
+
+private:
+    void startBackend() {
+        if (m_backend->state() != QProcess::NotRunning) return;
+        m_backend->setProgram(QStringLiteral("python3"));
+        m_backend->setArguments({QStringLiteral("-m"), QStringLiteral("src.backend_bridge")});
+        m_backend->setWorkingDirectory(QCoreApplication::applicationDirPath() + QStringLiteral("/.."));
+        m_backend->start();
+    }
+
+    void sendMessage() {
+        const QString text = m_entry->toPlainText().trimmed();
+        if (text.isEmpty()) return;
+
+        startBackend();
+        if (!m_backend->waitForStarted(1000)) {
+            m_output->append(QStringLiteral("<p><b>Backend:</b> failed to start.</p>"));
+            return;
+        }
+
+        const QString escaped = text.toHtmlEscaped();
+        m_output->append(QStringLiteral("<p><b>You</b></p><p>%1</p>").arg(escaped));
+        m_entry->clear();
+        m_send->setEnabled(false);
+        m_pending = true;
+
+        QJsonObject object;
+        object.insert(QStringLiteral("action"), QStringLiteral("reply"));
+        object.insert(QStringLiteral("text"), text);
+        m_backend->write(QJsonDocument(object).toJson(QJsonDocument::Compact));
+        m_backend->write("\n");
+        m_backend->flush();
+    }
+
+    void readBackend() {
+        while (m_backend->canReadLine()) {
+            const QByteArray line = m_backend->readLine().trimmed();
+            if (line.isEmpty()) continue;
+            const QJsonDocument doc = QJsonDocument::fromJson(line);
+            if (!doc.isObject()) continue;
+            const QJsonObject object = doc.object();
+            if (object.value(QStringLiteral("ok")).toBool()) {
+                const QString answer = object.value(QStringLiteral("answer")).toString();
+                m_output->append(QStringLiteral("<p><b>Vaxx</b></p><p>%1</p>")
+                    .arg(answer.toHtmlEscaped().replace("\n", "<br>")));
+            } else {
+                const QString error = object.value(QStringLiteral("error")).toString();
+                m_output->append(QStringLiteral("<p><b>Vaxx error:</b> %1</p>").arg(error.toHtmlEscaped()));
+            }
+            m_pending = false;
+            m_send->setEnabled(!m_entry->toPlainText().trimmed().isEmpty());
+        }
+    }
+
+    QProcess* m_backend = nullptr;
+    QLabel* m_header = nullptr;
+    QTextBrowser* m_output = nullptr;
+    QTextEdit* m_entry = nullptr;
+    QPushButton* m_send = nullptr;
+    bool m_pending = false;
 };
 
 int main(int argc, char** argv) {
