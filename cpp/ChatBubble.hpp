@@ -2,6 +2,7 @@
 
 #include <QFrame>
 #include <QLabel>
+#include <QLineEdit>
 #include <QVBoxLayout>
 
 class ChatBubble final : public QFrame {
