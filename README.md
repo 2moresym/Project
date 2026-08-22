@@ -36,8 +36,6 @@ sudo apt update
 sudo apt install git cmake build-essential qt6-base-dev python3
 ```
 
-On older releases where `qt6-base-dev` is unavailable, use a distribution version that provides Qt 6 development packages.
-
 ### Fedora
 
 ```sh
@@ -50,7 +48,7 @@ sudo dnf install git cmake gcc-c++ qt6-qtbase-devel python3
 sudo pacman -Syu --needed git cmake base-devel qt6-base python
 ```
 
-Arch currently provides Qt 6 through the `qt6-base` package. citeturn294934search1turn294934search2
+Arch Linux provides Qt 6 development support through the `qt6-base` package.
 
 ### openSUSE Tumbleweed / Leap
 
@@ -64,7 +62,7 @@ Install Git, CMake, a C++ compiler, Python 3, and Qt 6 with the Widgets module e
 
 ### NixOS
 
-Use a development shell containing `cmake`, `gcc`/`clang`, `qt6.qtbase`, `python3`, and `git`, then build the project normally.
+Use a development shell containing `cmake`, `gcc` or `clang`, `qt6.qtbase`, `python3`, and `git`, then build the project normally.
 
 ## Build and run
 
@@ -99,7 +97,7 @@ Sidebar → AI provider & API key
 
 Choose either **Hugging Face** or **OpenAI-compatible**, then enter the appropriate credential. For OpenAI-compatible providers you can also enter a custom endpoint and model name.
 
-Credentials are stored in the local desktop settings used by the application and are not written into the Git repository. Treat your desktop account as sensitive because the saved credential is local configuration data.
+Credentials are saved in the local desktop settings used by the application and are not written into the Git repository. Treat your desktop account as sensitive because the saved credential is local configuration data.
 
 ### Hugging Face
 
