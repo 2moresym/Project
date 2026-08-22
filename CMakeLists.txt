@@ -13,6 +13,8 @@ add_executable(ai_chat_native
     cpp/main.cpp
     cpp/LiquidGlassWidget.cpp
     cpp/LiquidGlassWidget.hpp
+    cpp/DebugPanel.cpp
+    cpp/DebugPanel.hpp
 )
 
 target_link_libraries(ai_chat_native PRIVATE
