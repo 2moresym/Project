@@ -4,24 +4,32 @@ A tiny, lightweight AI playground for Linux.
 
 ## Features
 
-- Terminal UI with keyboard navigation and Escape-to-menu
+- Lightweight Python desktop UI with mouse/keyboard support
 - Multiple persistent chats
 - Persistent memories and conversation summaries
 - Automatic memory/summarization options
 - Hugging Face and OpenAI-compatible providers
 - Model and provider switching
-- Streaming responses
+- Background AI requests so the UI stays responsive
 - Conversation search
 - Custom AI names and themes
-- Smart Unicode terminal rendering for Markdown and common math/LaTeX
+- Smart Unicode rendering for Markdown and common math/LaTeX
+- Lightweight terminal UI remains available as a fallback
 - Offline demo backend when no API token is configured
 
 ## Requirements
 
 - Python 3
 - GNU Make
+- **Tkinter** for the desktop UI
 
-No third-party Python packages are required for the current version.
+Tkinter is part of Python's standard library, so there are no Python packages
+to install with pip. On Debian/Ubuntu-based Linux systems, install the system
+package if Tkinter is missing:
+
+```sh
+sudo apt install python3-tk
+```
 
 ## Build / run
 
@@ -30,8 +38,12 @@ make check
 make run
 ```
 
-Project opens in its terminal UI. Choose **Continue current chat** to resume
-an existing conversation or **New chat** to start a separate one.
+`make run` now opens the desktop application. To use the lightweight terminal
+version instead:
+
+```sh
+make terminal
+```
 
 ## API configuration
 
@@ -49,9 +61,25 @@ export OPENAI_BASE_URL="https://your-endpoint/v1"
 export OPENAI_MODEL="your-model"
 ```
 
-The exact provider/model can also be changed from the UI.
+The provider and model can also be changed from the desktop Settings panel.
 
-## Commands
+## Desktop UI
+
+The desktop app keeps the project lightweight while making rich AI output
+much easier to read. It provides:
+
+- Chat list with new, rename, switch, and delete actions
+- Scrollable conversation view
+- Multiline message input
+- Background requests so the window does not freeze during API calls
+- Memory viewer
+- AI name, provider, and model settings
+- Persistent local chat/session state
+
+Markdown and common LaTeX are normalized for terminal-safe display as a
+fallback, while the desktop view provides a more comfortable reading surface.
+
+## Terminal commands
 
 - `/help` — show commands
 - `/ui` — return to the main UI
@@ -69,17 +97,6 @@ The exact provider/model can also be changed from the UI.
 - `/save` — save state
 - `/quit` — save and exit
 
-Inside the UI, use **↑/↓ or W/S**, then **Enter** to select. **Escape**
-returns to the UI from chat.
-
-## Terminal rendering
-
-Project defaults to Unicode-friendly rendering for common Markdown and
-mathematical notation. Common LaTeX such as `x^2`, `\\sqrt{x}`, and
-`\\frac{a}{b}` is converted to readable terminal text such as `x²`, `√(x)`,
-and `(a)/(b)`. Markdown headings, bullets, simple tables, and math delimiters
-are also normalized while fenced code blocks are preserved.
-
 ## Data
 
 Local conversations, memories, summaries, and settings are stored under
@@ -88,10 +105,18 @@ to the repository.
 
 ## Architecture
 
-The project is split into small modules for configuration, settings, providers,
-chat state, sessions, terminal rendering, and the terminal controller. The
-provider layer is replaceable, allowing remote APIs or the offline demo backend
-to share the same chat interface.
+The project keeps the AI backend separate from its presentation layers:
+
+```text
+src/
+├── gui.py              # desktop UI
+├── main.py             # terminal UI
+├── chat.py             # conversation and memory state
+├── providers.py        # API providers
+├── sessions.py         # persistent chats
+├── settings.py         # persistent settings
+└── terminal_render.py  # terminal Markdown/math rendering
+```
 
 The project is deliberately lightweight so it remains practical on older Linux
 hardware while leaving room for additional features.
