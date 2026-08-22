@@ -1,8 +1,13 @@
-.PHONY: run check test clean
+.PHONY: run gui terminal check test clean
 
 PYTHON ?= python3
 
-run:
+run: gui
+
+gui:
+	$(PYTHON) -m src.gui
+
+terminal:
 	$(PYTHON) -m src.main
 
 check:
