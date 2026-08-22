@@ -4,9 +4,7 @@
 #include <QComboBox>
 #include <QHBoxLayout>
 #include <QLabel>
-#include <QLineEdit>
 #include <QMainWindow>
-#include <QProcess>
 #include <QPushButton>
 #include <QTextBrowser>
 #include <QTextEdit>
@@ -35,28 +33,23 @@ public:
         title->setObjectName(QStringLiteral("appTitle"));
         sideLayout->addWidget(title);
 
+        sideLayout->addWidget(new QLabel(QStringLiteral("UI performance")));
         auto* performance = new QComboBox;
         performance->addItems({QStringLiteral("Low GPU"), QStringLiteral("Balanced"), QStringLiteral("Smooth")});
         performance->setCurrentText(QStringLiteral("Balanced"));
-        sideLayout->addWidget(new QLabel(QStringLiteral("UI performance")));
         sideLayout->addWidget(performance);
-
-        auto* glassHost = new QWidget;
-        glassHost->setObjectName(QStringLiteral("glassHost"));
-        auto* glass = new LiquidGlassWidget(glassHost);
-        glass->setGeometry(glassHost->rect());
-        glassHost->installEventFilter(new QObject(glassHost));
-        Q_UNUSED(glass);
 
         auto* newChat = new QPushButton(QStringLiteral("＋  New chat"));
         sideLayout->addWidget(newChat);
-        sideLayout->addWidget(glassHost, 1);
+
+        auto* glass = new LiquidGlassWidget;
+        glass->setMinimumHeight(180);
+        sideLayout->addWidget(glass, 1);
 
         auto* memory = new QPushButton(QStringLiteral("Memory"));
         auto* settings = new QPushButton(QStringLiteral("Settings"));
         sideLayout->addWidget(memory);
         sideLayout->addWidget(settings);
-
         layout->addWidget(sidebar);
 
         auto* main = new QWidget;
@@ -70,7 +63,10 @@ public:
 
         auto* output = new QTextBrowser;
         output->setOpenExternalLinks(true);
-        output->setHtml(QStringLiteral("<p><b>Vaxx</b></p><p>C++ GPU renderer online.</p><p>The AI backend remains Python.</p>"));
+        output->setHtml(QStringLiteral(
+            "<p><b>Vaxx</b></p>"
+            "<p>C++ GPU renderer online.</p>"
+            "<p>The AI backend remains Python.</p>"));
         mainLayout->addWidget(output, 1);
 
         auto* bottom = new QHBoxLayout;
@@ -84,7 +80,8 @@ public:
         layout->addWidget(main, 1);
         setCentralWidget(root);
 
-        connect(performance, &QComboBox::currentTextChanged, glass, &LiquidGlassWidget::setPerformanceProfile);
+        connect(performance, &QComboBox::currentTextChanged,
+                glass, &LiquidGlassWidget::setPerformanceProfile);
         glass->setPerformanceProfile(performance->currentText());
 
         setStyleSheet(QStringLiteral(
@@ -92,8 +89,10 @@ public:
             "#sidebar{background:#181b22;border:1px solid #2a303b;border-radius:18px;}"
             "#appTitle{font-size:18pt;font-weight:700;}"
             "#header{font-size:14pt;font-weight:650;padding:6px;}"
-            "QPushButton,QComboBox{background:#181b22;color:#f2f4f7;border:1px solid #2a303b;border-radius:11px;padding:9px 13px;}"
-            "QTextBrowser,QTextEdit{background:#20242d;color:#f2f4f7;border:1px solid #2a303b;border-radius:15px;padding:10px;}"
+            "QPushButton,QComboBox{background:#181b22;color:#f2f4f7;"
+            "border:1px solid #2a303b;border-radius:11px;padding:9px 13px;}"
+            "QTextBrowser,QTextEdit{background:#20242d;color:#f2f4f7;"
+            "border:1px solid #2a303b;border-radius:15px;padding:10px;}"
         ));
     }
 };
