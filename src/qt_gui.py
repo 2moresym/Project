@@ -69,7 +69,6 @@ class SettingsDialog(QDialog):
         form = QFormLayout(self)
         form.setContentsMargins(24, 20, 24, 20)
         form.setSpacing(12)
-
         self.name = QLineEdit(parent.chat.ai_name)
         self.provider = QComboBox()
         self.provider.addItems(["huggingface", "openai"])
@@ -92,7 +91,6 @@ class SettingsDialog(QDialog):
         self.memory.setChecked(s.auto_memory)
         self.summary = QCheckBox("Automatically summarize long conversations")
         self.summary.setChecked(s.auto_summary)
-
         form.addRow("AI name", self.name)
         form.addRow("API provider", self.provider)
         form.addRow("Model", self.model)
@@ -139,6 +137,7 @@ class MainWindow(QMainWindow):
         self._worker_thread: threading.Thread | None = None
         self._reply_worker: ReplyWorker | None = None
         self._sidebar_animation: QParallelAnimationGroup | None = None
+        self._sidebar_opacity: QGraphicsOpacityEffect | None = None
 
         icon = pathlib.Path(__file__).resolve().parent.parent / "icons" / "Temp app icon.png"
         if icon.exists():
@@ -159,7 +158,6 @@ class MainWindow(QMainWindow):
         layout = QHBoxLayout(root)
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(10)
-
         self.sidebar = QWidget()
         self.sidebar.setObjectName("sidebar")
         sidebar_layout = QVBoxLayout(self.sidebar)
@@ -178,7 +176,6 @@ class MainWindow(QMainWindow):
         head.addWidget(self.collapse)
         sidebar_layout.addLayout(head)
         sidebar_layout.addWidget(subtitle)
-
         self.new_button = QPushButton("＋  New chat")
         self.new_button.setObjectName("primary")
         self.new_button.clicked.connect(self.new_chat)
@@ -191,7 +188,6 @@ class MainWindow(QMainWindow):
             button.clicked.connect(callback)
             sidebar_layout.addWidget(button)
         layout.addWidget(self.sidebar)
-
         main = QWidget()
         main_layout = QVBoxLayout(main)
         main_layout.setContentsMargins(4, 4, 4, 4)
@@ -206,12 +202,10 @@ class MainWindow(QMainWindow):
         top.addWidget(self.header, 1)
         top.addWidget(menu)
         main_layout.addLayout(top)
-
         self.output = QTextBrowser()
         self.output.setOpenExternalLinks(True)
         self.output.setReadOnly(True)
         main_layout.addWidget(self.output, 1)
-
         bottom = QHBoxLayout()
         self.entry = QTextEdit()
         self.entry.setPlaceholderText("Message Vaxx…")
@@ -262,22 +256,18 @@ class MainWindow(QMainWindow):
             QScrollBar::add-line, QScrollBar::sub-line {{ height: 0px; }}
             QCheckBox {{ spacing: 8px; }}
         """)
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(22)
-        shadow.setOffset(0, 5)
-        shadow.setColor(Qt.GlobalColor.black)
-        self.sidebar.setGraphicsEffect(shadow)
-        if not hasattr(self, "_sidebar_opacity"):
-            self._sidebar_opacity = QGraphicsOpacityEffect(self.sidebar)
-        self.sidebar.setGraphicsEffect(self._sidebar_shadow() if False else self.sidebar.graphicsEffect())
+        # A widget can own only one graphics effect. The old version created a
+        # shadow effect and then cached a separate opacity effect whose C++
+        # object could later be destroyed by Qt, leaving a dead Shiboken proxy.
+        # Keep the opacity effect as the sidebar's single effect instead.
+        if self._sidebar_opacity is None or self._sidebar_opacity.parent() is None:
+            self._sidebar_opacity = QGraphicsOpacityEffect()
+            self.sidebar.setGraphicsEffect(self._sidebar_opacity)
+        elif self.sidebar.graphicsEffect() is not self._sidebar_opacity:
+            self._sidebar_opacity = QGraphicsOpacityEffect()
+            self.sidebar.setGraphicsEffect(self._sidebar_opacity)
+        self._sidebar_opacity.setOpacity(1.0)
         self._set_sidebar_width(self.sidebar_width if self.sidebar.isVisible() else 0)
-
-    def _sidebar_shadow(self):
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(22)
-        shadow.setOffset(0, 5)
-        shadow.setColor(Qt.GlobalColor.black)
-        return shadow
 
     @staticmethod
     def _html_response(text: str) -> str:
@@ -430,14 +420,26 @@ class MainWindow(QMainWindow):
             self.sidebar.setVisible(True)
 
     def toggle_sidebar(self) -> None:
+        # Stop the previous animation before touching its effect. This also
+        # makes rapid repeated clicks safe.
+        if self._sidebar_animation is not None and self._sidebar_animation.state() != QParallelAnimationGroup.State.Stopped:
+            self._sidebar_animation.stop()
+
         start = self.sidebar.maximumWidth()
         opening = start <= 1
         end = self.sidebar_width if opening else 0
+        self.sidebar.setVisible(True)
         if opening:
-            self.sidebar.setVisible(True)
             self.sidebar.setMaximumWidth(0)
-        else:
-            self.sidebar.setVisible(True)
+
+        # QGraphicsEffect ownership belongs to the widget. Never reuse a
+        # Python wrapper after Qt may have destroyed the underlying C++ object.
+        # Recreate and install the effect for each animation.
+        opacity_effect = QGraphicsOpacityEffect()
+        opacity_effect.setOpacity(0.0 if opening else 1.0)
+        self.sidebar.setGraphicsEffect(opacity_effect)
+        self._sidebar_opacity = opacity_effect
+
         group = QParallelAnimationGroup(self)
         width_anim = QPropertyAnimation(self.sidebar, b"maximumWidth", group)
         width_anim.setDuration(210)
@@ -445,24 +447,25 @@ class MainWindow(QMainWindow):
         width_anim.setEndValue(end)
         width_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         group.addAnimation(width_anim)
-        if not hasattr(self, "_sidebar_opacity"):
-            self._sidebar_opacity = QGraphicsOpacityEffect(self.sidebar)
-        self.sidebar.setGraphicsEffect(self._sidebar_opacity)
-        opacity_anim = QPropertyAnimation(self._sidebar_opacity, b"opacity", group)
+
+        opacity_anim = QPropertyAnimation(opacity_effect, b"opacity", group)
         opacity_anim.setDuration(170)
         opacity_anim.setStartValue(0.0 if opening else 1.0)
         opacity_anim.setEndValue(1.0 if opening else 0.0)
         opacity_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         group.addAnimation(opacity_anim)
+
         def finished() -> None:
             if not opening:
                 self.sidebar.setVisible(False)
             else:
                 self.sidebar.setVisible(True)
             self.sidebar.setMaximumWidth(end)
+            self._sidebar_animation = None
+
         group.finished.connect(finished)
-        group.start()
         self._sidebar_animation = group
+        group.start()
 
     def eventFilter(self, obj, event):
         if obj is self.entry and event.type() == event.Type.KeyPress:
