@@ -1,11 +1,20 @@
-.PHONY: run gui terminal check test clean
+.PHONY: run gui terminal check test setup clean
 
 PYTHON ?= python3
+VENV ?= .venv
+VENV_PYTHON := $(VENV)/bin/python
+VENV_PIP := $(VENV)/bin/pip
 
-run: gui
+setup: $(VENV_PYTHON)
+	$(VENV_PIP) install -q -r requirements.txt
 
-gui:
-	$(PYTHON) -m src.gui
+$(VENV_PYTHON):
+	$(PYTHON) -m venv $(VENV)
+
+run: setup
+	$(VENV_PYTHON) -m src.gui
+
+gui: run
 
 terminal:
 	$(PYTHON) -m src.main
