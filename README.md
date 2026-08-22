@@ -10,6 +10,7 @@ A tiny, lightweight AI playground for Linux.
 - Automatic memory/summarization options
 - Hugging Face and OpenAI-compatible providers
 - Model and provider switching
+- Unified desktop Settings window with dropdowns and toggles
 - Background AI requests so the UI stays responsive
 - Conversation search
 - Custom AI names and themes
@@ -69,7 +70,9 @@ much easier to read. It provides:
 - Multiline message input
 - Background requests so the window does not freeze during API calls
 - Memory viewer
-- AI name, provider, and model settings
+- AI name, provider, model, theme, streaming, automatic-memory, and
+  automatic-summary controls in one Settings window
+- Dropdowns for provider, model, and theme instead of sequential prompts
 - Persistent local chat/session state
 - Broad-Unicode UI fonts when Noto Sans is installed
 
