@@ -6,6 +6,7 @@ A tiny, lightweight AI playground for Linux.
 
 - Lightweight Python desktop UI (**AI Chat**) with mouse/keyboard support
 - PySide6 desktop UI with rounded surfaces, subtle animation, and responsive layout
+- GPU liquid-glass sidebar with lightweight OpenGL shader
 - Smart UI performance profiles for older hardware
 - Collapsible chat sidebar with smooth width/fade animation
 - Clean transparent labels and themed dropdown controls
@@ -90,11 +91,13 @@ presentation layer. It provides:
 
 - Collapsible/expandable sidebar with smooth width and fade animation
 - Rounded cards, controls, and input surfaces
+- GPU liquid-glass sidebar rendered with a small Qt OpenGL shader
+- Animated highlight/wave sheen without texture uploads
 - Transparent, correctly themed labels and cleaner dropdowns
 - Smart UI performance profiles:
-  - **Low GPU** — no drop shadow and shorter/lightweight effects
-  - **Balanced** — subtle shadow and normal animations (default)
-  - **Smooth** — slightly richer shadow and longer easing transitions
+  - **Low GPU** — static/light glass and no drop shadow
+  - **Balanced** — animated glass with moderate shader strength (default)
+  - **Smooth** — stronger glass sheen and animation
 - Scrollable selectable conversation view
 - Copy/select-all support
 - Multiline message input
@@ -107,10 +110,9 @@ presentation layer. It provides:
 - Unicode and rich Markdown/math rendering
 - Persistent local chat/session state
 
-The performance selector is deliberately conservative: it adjusts UI effects
-rather than forcing a global OpenGL backend, which keeps the app friendly to
-older Mesa/Intel graphics stacks while still allowing a smoother appearance
-on capable systems.
+The glass effect is intentionally local to the sidebar rather than forcing a
+global OpenGL backend. This avoids changing Qt's rendering path for the entire
+application and keeps the effect conservative for older Mesa/Intel hardware.
 
 ## Icons
 
@@ -149,6 +151,7 @@ The project keeps the AI backend separate from its presentation layers:
 ```text
 src/
 ├── qt_gui.py            # PySide6 desktop UI
+├── glass.py             # isolated GPU liquid-glass OpenGL layer
 ├── gui.py               # compatibility desktop entry point
 ├── main.py              # terminal UI
 ├── chat.py              # conversation and memory state
