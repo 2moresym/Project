@@ -86,7 +86,9 @@ public:
         glass->setPerformanceProfile(performance->currentText());
         connect(m_send, &QPushButton::clicked, this, &MainWindow::sendMessage);
         connect(m_entry, &QTextEdit::textChanged, this, [this]() {
-            m_send->setEnabled(!m_entry->toPlainText().trimmed().isEmpty());
+            if (!m_pending) {
+                m_send->setEnabled(!m_entry->toPlainText().trimmed().isEmpty());
+            }
         });
         m_send->setEnabled(false);
 
@@ -95,7 +97,8 @@ public:
         connect(m_backend, &QProcess::errorOccurred,
                 this, [this](QProcess::ProcessError) {
                     m_output->append(QStringLiteral("<p><b>Backend error:</b> %1</p>").arg(m_backend->errorString().toHtmlEscaped()));
-                    m_send->setEnabled(true);
+                    m_pending = false;
+                    m_send->setEnabled(!m_entry->toPlainText().trimmed().isEmpty());
                 });
 
         setStyleSheet(QStringLiteral(
@@ -129,7 +132,7 @@ private:
 
     void sendMessage() {
         const QString text = m_entry->toPlainText().trimmed();
-        if (text.isEmpty()) return;
+        if (text.isEmpty() || m_pending) return;
 
         startBackend();
         if (!m_backend->waitForStarted(1000)) {
@@ -148,7 +151,6 @@ private:
         object.insert(QStringLiteral("text"), text);
         m_backend->write(QJsonDocument(object).toJson(QJsonDocument::Compact));
         m_backend->write("\n");
-        m_backend->flush();
     }
 
     void readBackend() {
