@@ -11,9 +11,15 @@ from .providers import make_provider
 
 
 def _configured_provider() -> tuple[str, str]:
-    provider = os.environ.get("PROJECT_PROVIDER", "huggingface").strip().lower() or "huggingface"
+    provider = os.environ.get("PROJECT_PROVIDER", "").strip().lower()
+    hf_token = os.environ.get("HF_TOKEN", "").strip()
+    openai_key = os.environ.get("OPENAI_API_KEY", "").strip()
+
     if provider not in {"huggingface", "openai"}:
-        provider = "huggingface"
+        provider = "openai" if openai_key and not hf_token else "huggingface"
+    elif provider == "huggingface" and not hf_token and openai_key:
+        provider = "openai"
+
     if provider == "openai":
         model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini").strip() or "gpt-4o-mini"
     else:
@@ -24,6 +30,7 @@ def _configured_provider() -> tuple[str, str]:
 def main() -> int:
     try:
         provider_name, model = _configured_provider()
+        print(f"backend initialized provider={provider_name} model={model}", file=sys.stderr, flush=True)
         chat = Chat(make_provider(model, provider_name))
         chat.load()
     except Exception as exc:
