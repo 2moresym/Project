@@ -5,7 +5,9 @@ A tiny, lightweight AI playground for Linux.
 ## Features
 
 - Lightweight Python desktop UI (**AI Chat**) with mouse/keyboard support
-- Multiple persistent chats
+- Collapsible chat sidebar for more conversation space
+- Persistent chat list with new, rename, switch, and delete actions
+- Copy/select-all support for AI and user messages
 - Persistent memories and conversation summaries
 - Automatic memory/summarization options
 - Hugging Face and OpenAI-compatible providers
@@ -13,7 +15,7 @@ A tiny, lightweight AI playground for Linux.
 - Unified desktop Settings window with dropdowns and toggles
 - Light, dark, and system appearance modes
 - Accent themes that apply to the desktop UI
-- Rounded, lightweight custom UI controls
+- Clean native Tk/ttk controls and responsive layout
 - Background AI requests so the UI stays responsive
 - Conversation search
 - Custom AI names
@@ -68,8 +70,9 @@ The provider and model can also be changed from the desktop Settings panel.
 The desktop app keeps the project lightweight while making rich AI output
 much easier to read. It provides:
 
-- Chat list with new, rename, switch, and delete actions
+- Collapsible/expandable sidebar using the menu button
 - Scrollable conversation view
+- Selectable chat text with `Ctrl+C`, `Ctrl+A`, and right-click Copy
 - Multiline message input
 - Background requests so the window does not freeze during API calls
 - Memory viewer
@@ -78,7 +81,7 @@ much easier to read. It provides:
 - Dropdowns for provider, model, appearance, and accent theme instead of
   sequential prompts
 - Light/dark/system appearance support
-- Rounded buttons and cleaner panel/input styling
+- Native ttk controls instead of custom canvas buttons for smoother edges
 - Persistent local chat/session state
 - Broad-Unicode UI fonts when Noto Sans is installed
 
