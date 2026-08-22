@@ -10,18 +10,21 @@ from .settings import Settings
 from .terminal_render import render
 
 APP_NAME = "AI Chat"
+APP_CLASS = "AIChat"
 
 class VaxxApp(tk.Tk):
     def __init__(self):
-        super().__init__(); self.settings=Settings.load(); self.store=SessionStore.load(lambda _:make_provider(self.settings.model,self.settings.provider)); self.current=self.settings.current_chat if self.settings.current_chat in self.store.chats else next(iter(self.store.chats)); self._busy=False
+        super().__init__(); self.tk.call("wm", "class", ".", APP_CLASS); self.settings=Settings.load(); self.store=SessionStore.load(lambda _:make_provider(self.settings.model,self.settings.provider)); self.current=self.settings.current_chat if self.settings.current_chat in self.store.chats else next(iter(self.store.chats)); self._busy=False
         self.title(f"{APP_NAME} — {self.store.chats[self.current].ai_name}"); self.geometry("1050x700"); self.minsize(760,500); self._build(); self._refresh_chats(); self._show_chat(); self.protocol("WM_DELETE_WINDOW",self._quit)
+    def _font(self,size=11,bold=False):
+        families=self.tk.call("font","families"); family="Noto Sans" if "Noto Sans" in families else "TkDefaultFont"; return (family,size,"bold") if bold else (family,size)
     def _build(self):
         self.grid_columnconfigure(1,weight=1); self.grid_rowconfigure(0,weight=1); side=ttk.Frame(self,padding=10); side.grid(row=0,column=0,sticky="nsew"); side.grid_rowconfigure(2,weight=1)
-        ttk.Label(side,text=APP_NAME,font=("TkDefaultFont",18,"bold")).grid(row=0,column=0,sticky="w"); ttk.Button(side,text="＋ New chat",command=self._new_chat).grid(row=1,column=0,sticky="ew",pady=(10,6)); self.chat_list=tk.Listbox(side,exportselection=False,activestyle="none"); self.chat_list.grid(row=2,column=0,sticky="nsew"); self.chat_list.bind("<<ListboxSelect>>",self._select_chat)
+        ttk.Label(side,text=APP_NAME,font=self._font(18,True)).grid(row=0,column=0,sticky="w"); ttk.Button(side,text="＋ New chat",command=self._new_chat).grid(row=1,column=0,sticky="ew",pady=(10,6)); self.chat_list=tk.Listbox(side,exportselection=False,activestyle="none",font=self._font()); self.chat_list.grid(row=2,column=0,sticky="nsew"); self.chat_list.bind("<<ListboxSelect>>",self._select_chat)
         for row,text,cmd in [(3,"Rename chat",self._rename_chat),(4,"Delete chat",self._delete_chat),(5,"Memory",self._show_memory),(6,"Settings",self._settings),(7,"Quit",self._quit)]:ttk.Button(side,text=text,command=cmd).grid(row=row,column=0,sticky="ew",pady=3)
-        main=ttk.Frame(self,padding=(0,10,10,10)); main.grid(row=0,column=1,sticky="nsew"); main.grid_rowconfigure(1,weight=1); main.grid_columnconfigure(0,weight=1); self.header=ttk.Label(main,text="",font=("TkDefaultFont",13,"bold")); self.header.grid(row=0,column=0,sticky="w",pady=(0,8))
-        body=ttk.Frame(main); body.grid(row=1,column=0,sticky="nsew"); body.grid_rowconfigure(0,weight=1); body.grid_columnconfigure(0,weight=1); self.output=tk.Text(body,wrap="word",state="disabled",padx=16,pady=14,font=("TkDefaultFont",11),undo=False); self.output.grid(row=0,column=0,sticky="nsew"); scroll=ttk.Scrollbar(body,command=self.output.yview); scroll.grid(row=0,column=1,sticky="ns"); self.output.configure(yscrollcommand=scroll.set)
-        bottom=ttk.Frame(main); bottom.grid(row=2,column=0,sticky="ew",pady=(8,0)); bottom.grid_columnconfigure(0,weight=1); self.entry=tk.Text(bottom,height=3,wrap="word",font=("TkDefaultFont",11)); self.entry.grid(row=0,column=0,sticky="ew"); self.entry.bind("<Control-Return>",lambda _:self._send()); ttk.Button(bottom,text="Send",command=self._send).grid(row=0,column=1,sticky="ns",padx=(8,0)); ttk.Label(main,text="Ctrl+Enter to send • chats and settings are saved locally",foreground="gray").grid(row=3,column=0,sticky="w",pady=(5,0))
+        main=ttk.Frame(self,padding=(0,10,10,10)); main.grid(row=0,column=1,sticky="nsew"); main.grid_rowconfigure(1,weight=1); main.grid_columnconfigure(0,weight=1); self.header=ttk.Label(main,text="",font=self._font(13,True)); self.header.grid(row=0,column=0,sticky="w",pady=(0,8))
+        body=ttk.Frame(main); body.grid(row=1,column=0,sticky="nsew"); body.grid_rowconfigure(0,weight=1); body.grid_columnconfigure(0,weight=1); self.output=tk.Text(body,wrap="word",state="disabled",padx=16,pady=14,font=self._font(),undo=False); self.output.grid(row=0,column=0,sticky="nsew"); scroll=ttk.Scrollbar(body,command=self.output.yview); scroll.grid(row=0,column=1,sticky="ns"); self.output.configure(yscrollcommand=scroll.set)
+        bottom=ttk.Frame(main); bottom.grid(row=2,column=0,sticky="ew",pady=(8,0)); bottom.grid_columnconfigure(0,weight=1); self.entry=tk.Text(bottom,height=3,wrap="word",font=self._font()); self.entry.grid(row=0,column=0,sticky="ew"); self.entry.bind("<Control-Return>",lambda _:self._send()); ttk.Button(bottom,text="Send",command=self._send).grid(row=0,column=1,sticky="ns",padx=(8,0)); ttk.Label(main,text="Ctrl+Enter to send • chats and settings are saved locally",foreground="gray",font=self._font(9)).grid(row=3,column=0,sticky="w",pady=(5,0))
     def _chat(self):return self.store.chats[self.current]
     def _provider(self):return make_provider(self.settings.model,self.settings.provider)
     def _refresh_chats(self):
