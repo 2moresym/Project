@@ -5,8 +5,10 @@ A tiny, lightweight AI playground for Linux.
 ## Features
 
 - Lightweight Python desktop UI (**AI Chat**) with mouse/keyboard support
+- PySide6/Qt desktop interface with smooth sidebar animation and subtle shadowing
 - Collapsible chat sidebar for more conversation space
 - Persistent chat list with new, rename, switch, and delete actions
+- Selectable rich AI output with Unicode math and Markdown formatting
 - Copy/select-all support for AI and user messages
 - Persistent memories and conversation summaries
 - Automatic memory/summarization options
@@ -15,12 +17,10 @@ A tiny, lightweight AI playground for Linux.
 - Unified desktop Settings window with dropdowns and toggles
 - Light, dark, and system appearance modes
 - Accent themes that apply to the desktop UI
-- Clean native Tk/ttk controls and responsive layout
 - Background AI requests so the UI stays responsive
 - Conversation search
 - Custom AI names
-- Smart Unicode rendering for Markdown and common math/LaTeX
-- Native rich-text rendering for headings, bold, italic, inline code, and fenced code blocks
+- Smart Unicode rendering for common math/LaTeX
 - Lightweight terminal UI remains available as a fallback
 - Offline demo backend when no API token is configured
 
@@ -28,15 +28,15 @@ A tiny, lightweight AI playground for Linux.
 
 - Python 3
 - GNU Make
-- **Tkinter** for the desktop UI
+- PySide6 for the desktop app
 
-Tkinter is part of Python's standard library, so there are no Python packages
-to install with pip. On Debian/Ubuntu-based Linux systems, install the system
-package if Tkinter is missing:
+Install the desktop dependency with:
 
 ```sh
-sudo apt install python3-tk
+python3 -m pip install -r requirements.txt
 ```
+
+The project also keeps its terminal fallback dependency-light.
 
 ## Build / run
 
@@ -45,8 +45,12 @@ make check
 make run
 ```
 
-`make run` opens the desktop application as **AI Chat**. The terminal version
-remains available as a lightweight fallback.
+`make run` opens the PySide6 desktop application as **AI Chat**. The terminal
+version remains available as a lightweight fallback:
+
+```sh
+make terminal
+```
 
 ## API configuration
 
@@ -68,12 +72,13 @@ The provider and model can also be changed from the desktop Settings panel.
 
 ## Desktop UI
 
-The desktop app keeps the project lightweight while making rich AI output
-much easier to read. It provides:
+The desktop app keeps the project lightweight while providing a more polished
+Qt surface for rich AI output. It provides:
 
-- Collapsible/expandable sidebar using the menu button
-- Scrollable conversation view
-- Selectable chat text with `Ctrl+C`, `Ctrl+A`, and right-click Copy
+- Collapsible/expandable animated sidebar
+- Rounded cards, native Qt controls, and subtle drop shadows
+- Scrollable selectable conversation view
+- Unicode math and basic Markdown rendering
 - Multiline message input
 - Background requests so the window does not freeze during API calls
 - Memory viewer
@@ -82,22 +87,15 @@ much easier to read. It provides:
 - Dropdowns for provider, model, appearance, and accent theme instead of
   sequential prompts
 - Light/dark/system appearance support
-- Native ttk controls instead of custom canvas buttons for smoother edges
-- Rich rendering for Markdown emphasis and code while keeping AI output selectable
 - Persistent local chat/session state
-- Broad-Unicode UI fonts when Noto Sans is installed
+- Application icon loaded from `icons/`
 
-The Settings dialog defers its modal grab until the window is mapped, avoiding
-Tk/X11 `window not viewable` errors on systems where an immediate `grab_set()`
-can fail.
-
-The window/app identity is **AI Chat** rather than the default Tk name.
+The UI deliberately avoids Qt WebEngine and other heavyweight components so the
+visual layer stays practical on older integrated graphics.
 
 ## Icons
 
-Put the application icon in the repository's `icons/` directory. Once an icon
-is added there, it can be wired into the desktop launcher/window without
-changing the rest of the UI.
+Put the application icon in the repository's `icons/` directory.
 
 ## Terminal fallback
 
@@ -131,7 +129,8 @@ The project keeps the AI backend separate from its presentation layers:
 
 ```text
 src/
-├── gui.py              # desktop UI
+├── gui.py              # desktop entry point
+├── qt_gui.py           # PySide6 desktop UI
 ├── main.py             # terminal UI
 ├── chat.py             # conversation and memory state
 ├── providers.py        # API providers
