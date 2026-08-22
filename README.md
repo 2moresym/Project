@@ -6,7 +6,8 @@ A tiny, lightweight AI playground for Linux.
 
 - Lightweight Python desktop UI (**AI Chat**) with mouse/keyboard support
 - PySide6 desktop UI with rounded surfaces, subtle animation, and responsive layout
-- Collapsible chat sidebar for more conversation space
+- Collapsible chat sidebar with smooth width/fade animation
+- Clean transparent labels and themed dropdown controls
 - Persistent chat list with new, rename, switch, and delete actions
 - Copy/select-all support for AI and user messages
 - Persistent memories and conversation summaries
@@ -86,8 +87,9 @@ The provider and model can also be changed from the desktop Settings panel.
 The desktop app keeps the backend lightweight while using Qt for a smoother
 presentation layer. It provides:
 
-- Collapsible/expandable sidebar with a short smooth animation
+- Collapsible/expandable sidebar with smooth width and fade animation
 - Rounded cards, controls, and input surfaces
+- Transparent, correctly themed labels and cleaner dropdowns
 - Scrollable selectable conversation view
 - Copy/select-all support
 - Multiline message input
