@@ -4,7 +4,7 @@ A tiny, lightweight AI playground for Linux.
 
 ## Features
 
-- Lightweight Python desktop UI with mouse/keyboard support
+- Lightweight Python desktop UI (**AI Chat**) with mouse/keyboard support
 - Multiple persistent chats
 - Persistent memories and conversation summaries
 - Automatic memory/summarization options
@@ -38,12 +38,8 @@ make check
 make run
 ```
 
-`make run` now opens the desktop application. To use the lightweight terminal
-version instead:
-
-```sh
-make terminal
-```
+`make run` opens the desktop application as **AI Chat**. The terminal version
+remains available as a lightweight fallback.
 
 ## API configuration
 
@@ -56,7 +52,7 @@ export HF_TOKEN="your_token"
 For an OpenAI-compatible provider:
 
 ```sh
-export OPENAI_API_KEY="your_key"
+export OPENAI_API_KEY="your-key"
 export OPENAI_BASE_URL="https://your-endpoint/v1"
 export OPENAI_MODEL="your-model"
 ```
@@ -75,15 +71,23 @@ much easier to read. It provides:
 - Memory viewer
 - AI name, provider, and model settings
 - Persistent local chat/session state
+- Broad-Unicode UI fonts when Noto Sans is installed
 
-Markdown and common LaTeX are normalized for terminal-safe display as a
-fallback, while the desktop view provides a more comfortable reading surface.
+The window/app identity is **AI Chat** rather than the default Tk name.
 
-## Terminal commands
+## Icons
+
+Put the application icon in the repository's `icons/` directory. Once an icon
+is added there, it can be wired into the desktop launcher/window without
+changing the rest of the UI.
+
+## Terminal fallback
+
+Use the terminal version when you want the smallest possible interface. It
+supports commands such as:
 
 - `/help` — show commands
 - `/ui` — return to the main UI
-- `/new <name>` — create a chat
 - `/search <text>` — search conversation history
 - `/memory` — view saved memories
 - `/remember <text>` — save a memory
