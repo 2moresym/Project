@@ -82,6 +82,10 @@ much easier to read. It provides:
 - Persistent local chat/session state
 - Broad-Unicode UI fonts when Noto Sans is installed
 
+The Settings dialog defers its modal grab until the window is mapped, avoiding
+Tk/X11 `window not viewable` errors on systems where an immediate `grab_set()`
+can fail.
+
 The window/app identity is **AI Chat** rather than the default Tk name.
 
 ## Icons
