@@ -7,21 +7,14 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGL OpenGLWidgets)
+find_package(Qt6 REQUIRED COMPONENTS Widgets)
 
 add_executable(ai_chat_native
-    cpp/main.cpp
-    cpp/LiquidGlassWidget.cpp
-    cpp/LiquidGlassWidget.hpp
-    cpp/DebugPanel.cpp
-    cpp/DebugPanel.hpp
+    cpp/native_ui.cpp
+    cpp/ChatBubble.hpp
 )
 
-target_link_libraries(ai_chat_native PRIVATE
-    Qt6::Widgets
-    Qt6::OpenGL
-    Qt6::OpenGLWidgets
-)
+target_link_libraries(ai_chat_native PRIVATE Qt6::Widgets)
 
 target_compile_options(ai_chat_native PRIVATE
     -Wall -Wextra -Wpedantic
