@@ -1,33 +1,38 @@
 # Project
 
-A small Linux AI playground with a native C++/Qt desktop UI and a lightweight Python AI backend.
+A lightweight Linux AI playground with a native C++/Qt desktop application and a small Python AI backend.
 
-## What it includes
+## Features
 
-- Native C++/Qt desktop application
-- Left/right chat bubbles with selectable text
-- Character-by-character assistant typing animation
-- Persistent Python chat/memory backend through a local JSON process bridge
+- Native C++17 + Qt 6 desktop UI
+- Left/right conversation bubbles with selectable text
+- Character-by-character assistant responses
+- Persistent chats and conversation state
+- Memory viewer and automatic memory support
+- Conversation summaries for long chats
 - Hugging Face and OpenAI-compatible providers
-- First-run provider setup window
-- GUI for API keys, endpoint, and model selection
-- Local chat memory viewer
-- Native debug window for runtime/backend diagnostics
-- Lightweight UI designed to remain usable on older Linux hardware
-- No terminal UI and no Python Qt dependency
+- Provider-specific API setup inside Settings
+- Automatic detection of existing `HF_TOKEN` / `OPENAI_API_KEY` configuration
+- Dynamic provider fields and model selection
+- Dark, light, and system appearance modes
+- Accent themes
+- Low GPU / Balanced / Smooth UI performance profiles
+- Native runtime debug panel with backend diagnostics
+- No terminal UI and no PySide6 desktop dependency
+- Lightweight design intended for older Linux hardware
 
 ## Requirements
 
 - Linux
-- CMake 3.16 or newer
-- Qt 6 Widgets development files
+- CMake 3.16+
 - A C++17 compiler
-- Python 3 for the AI backend
+- Qt 6 Widgets development files
+- Python 3
 - Git
 
-The Python backend uses only the standard library. The desktop application does **not** require PySide6, a Python virtual environment, or PyOpenGL.
+The Python backend uses only the standard library. PySide6 and PyOpenGL are not required.
 
-## Installation by distro
+## Installation
 
 ### Debian / Ubuntu / Linux Mint / Pop!_OS
 
@@ -48,9 +53,7 @@ sudo dnf install git cmake gcc-c++ qt6-qtbase-devel python3
 sudo pacman -Syu --needed git cmake base-devel qt6-base python
 ```
 
-Arch Linux provides Qt 6 development support through the `qt6-base` package.
-
-### openSUSE Tumbleweed / Leap
+### openSUSE
 
 ```sh
 sudo zypper install git cmake gcc-c++ libqt6-qtbase-devel python3
@@ -58,11 +61,11 @@ sudo zypper install git cmake gcc-c++ libqt6-qtbase-devel python3
 
 ### Gentoo
 
-Install Git, CMake, a C++ compiler, Python 3, and Qt 6 with the Widgets module enabled. Package names and USE flags depend on the selected profile.
+Install Git, CMake, a C++17 compiler, Python 3, and Qt 6 with Widgets enabled.
 
 ### NixOS
 
-Use a development shell containing `cmake`, `gcc` or `clang`, `qt6.qtbase`, `python3`, and `git`, then build the project normally.
+Use a development shell containing Git, CMake, a C++ compiler, Python 3, and `qt6.qtbase`.
 
 ## Build and run
 
@@ -72,101 +75,76 @@ cd Project
 make run
 ```
 
-The first build creates `build/ai_chat_native`. Later launches only need:
-
-```sh
-make run
-```
-
-To force a clean native rebuild:
+Clean rebuild:
 
 ```sh
 make clean
 make run
 ```
 
-## API setup — no terminal required
+## API setup
 
-On first launch the app opens **AI provider setup** automatically.
+Open **Settings → AI provider**.
 
-You can also open it at any time from:
-
-```text
-Sidebar → AI provider & API key
-```
-
-Choose either **Hugging Face** or **OpenAI-compatible**, then enter the appropriate credential. For OpenAI-compatible providers you can also enter a custom endpoint and model name.
-
-Credentials are saved in the local desktop settings used by the application and are not written into the Git repository. Treat your desktop account as sensitive because the saved credential is local configuration data.
+Choose a provider and its credentials. The form changes automatically for the selected provider.
 
 ### Hugging Face
 
-Paste your Hugging Face access token into the **Hugging Face token** field.
+- Hugging Face token
+- Model dropdown
 
-The default model is:
-
-```text
-openai/gpt-oss-120b:groq
-```
+The default model is `openai/gpt-oss-120b:groq`. Hugging Face's OpenAI-compatible router supports `openai/gpt-oss-120b` and other conversational models. citeturn682582search0turn682582search1
 
 ### OpenAI-compatible
 
-Paste your API key into **OpenAI API key**.
+- API key
+- Endpoint
+- Model dropdown
 
-The default endpoint is:
+A custom OpenAI-compatible endpoint can be used for other providers.
+
+Existing `HF_TOKEN` or `OPENAI_API_KEY` environment variables are detected automatically, so the setup dialog only appears when the app still needs configuration.
+
+Credentials are stored in the desktop application's local settings and are never committed to the repository.
+
+## Desktop UI
+
+The application is organized around a conventional chat layout:
 
 ```text
-https://api.openai.com/v1/chat/completions
-```
-
-You can replace it with another OpenAI-compatible endpoint and choose its model.
-
-## Desktop controls
-
-The native sidebar includes:
-
-```text
-＋ New chat
-Chats
-AI provider & API key
-Memory
+Sidebar                 Conversation
+────────                ─────────────
+New chat                You      → left
+Chats                   Vaxx     → right
 Settings
+Memory                  Message composer
 Debug
 ```
 
-The main conversation uses separate bubbles:
-
-```text
-You   → left
-Vaxx  → right
-```
-
-Assistant responses arrive from the Python backend and are then typed into the UI one character at a time rather than appearing as one large block.
+Assistant messages are rendered progressively instead of appearing as a complete block immediately.
 
 ## Debug mode
 
-Open **Debug** when something does not behave correctly. The panel records useful runtime information such as Qt version, backend state, provider selection, backend stderr, and request/response events without exposing API keys.
+Open **Debug** to inspect backend startup, process state, stderr, request events, and exit/crash information. API keys are not included in the debug output.
 
-## Architecture
+## Project structure
 
 ```text
 Project/
 ├── cpp/
-│   ├── main.cpp          # native Qt desktop UI
-│   └── ChatBubble.hpp    # chat message widget
+│   ├── app_main.cpp
+│   └── ChatBubble.hpp
 ├── src/
-│   ├── backend_bridge.py # local JSON bridge for the native UI
-│   ├── chat.py           # conversation and memory state
-│   ├── config.py         # backend defaults
-│   ├── providers.py      # Hugging Face / OpenAI-compatible APIs
-│   └── sessions.py       # persistent chat sessions
+│   ├── backend_bridge.py
+│   ├── chat.py
+│   ├── config.py
+│   ├── providers.py
+│   └── sessions.py
 ├── CMakeLists.txt
 └── Makefile
 ```
 
-The native C++ program owns the entire desktop UI. Python remains a small backend service so the AI/provider code can stay easy to maintain.
-
-## Useful commands
+## Commands
 
 ```sh
 make run
@@ -175,5 +153,3 @@ make check
 make test
 make clean
 ```
-
-There is intentionally **no terminal UI target**. The project is designed around the graphical application so new Linux users do not need shell commands to configure an AI provider.
