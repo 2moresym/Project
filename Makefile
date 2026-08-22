@@ -12,7 +12,7 @@ run: native-build
 
 native: run
 
-check:
+check: native-build
 	python3 -m compileall -q src tests
 	python3 -m unittest discover -s tests -q
 
