@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 
 from .chat import Chat
@@ -10,7 +11,9 @@ from .providers import make_provider
 
 
 def main() -> int:
-    chat = Chat(make_provider(DEFAULT_MODEL, "huggingface"))
+    provider_name = "openai" if os.environ.get("OPENAI_API_KEY", "").strip() else "huggingface"
+    model = os.environ.get("OPENAI_MODEL", DEFAULT_MODEL).strip() or DEFAULT_MODEL
+    chat = Chat(make_provider(model, provider_name))
     chat.load()
 
     for raw in sys.stdin:
