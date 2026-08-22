@@ -10,7 +10,7 @@ set(CMAKE_AUTORCC ON)
 find_package(Qt6 REQUIRED COMPONENTS Widgets)
 
 add_executable(ai_chat_native
-    cpp/native_ui.cpp
+    cpp/main.cpp
     cpp/ChatBubble.hpp
 )
 
