@@ -18,4 +18,5 @@ target_link_libraries(ai_chat_native PRIVATE Qt6::Widgets)
 
 target_compile_options(ai_chat_native PRIVATE
     -Wall -Wextra -Wpedantic
+    -include QInputDialog
 )
