@@ -5,5 +5,7 @@ __pycache__/
 .env
 .env.*
 
-# Local AI chat history
-/data/history.json
+# Local AI chat history, settings, sessions and keys
+/data/*.json
+/data/*.tmp
+/data/chats/
