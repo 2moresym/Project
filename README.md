@@ -6,6 +6,7 @@ A tiny, lightweight AI playground for Linux.
 
 - Lightweight Python desktop UI (**AI Chat**) with mouse/keyboard support
 - PySide6 desktop UI with rounded surfaces, subtle animation, and responsive layout
+- Smart UI performance profiles for older hardware
 - Collapsible chat sidebar with smooth width/fade animation
 - Clean transparent labels and themed dropdown controls
 - Persistent chat list with new, rename, switch, and delete actions
@@ -90,18 +91,26 @@ presentation layer. It provides:
 - Collapsible/expandable sidebar with smooth width and fade animation
 - Rounded cards, controls, and input surfaces
 - Transparent, correctly themed labels and cleaner dropdowns
+- Smart UI performance profiles:
+  - **Low GPU** — no drop shadow and shorter/lightweight effects
+  - **Balanced** — subtle shadow and normal animations (default)
+  - **Smooth** — slightly richer shadow and longer easing transitions
 - Scrollable selectable conversation view
 - Copy/select-all support
 - Multiline message input
 - Background requests so the window does not freeze during API calls
 - Memory viewer
-- AI name, provider, model, appearance, accent theme, streaming,
-  automatic-memory, and automatic-summary controls in one Settings window
-- Dropdowns for provider, model, appearance, and accent theme instead of
-  sequential prompts
+- AI name, provider, model, appearance, accent theme, UI performance,
+  streaming, automatic-memory, and automatic-summary controls in one Settings window
+- Dropdowns for provider, model, appearance, accent theme, and UI performance
 - Light/dark/system appearance support
 - Unicode and rich Markdown/math rendering
 - Persistent local chat/session state
+
+The performance selector is deliberately conservative: it adjusts UI effects
+rather than forcing a global OpenGL backend, which keeps the app friendly to
+older Mesa/Intel graphics stacks while still allowing a smoother appearance
+on capable systems.
 
 ## Icons
 
